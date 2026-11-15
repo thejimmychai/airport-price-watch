@@ -91,6 +91,39 @@ test('POST /api/agent1/inspect extracts all items, keeps store brand as-is, and 
   assert.equal(data.extracted.total, 39.65);
 });
 
+test('POST /api/agent1/inspect returns OCR bounding-box annotations for vendor and line items on uploaded receipt photo', async () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const imgBuf = fs.readFileSync(path.join(__dirname, 'fixtures', 'sample_jfk_receipt.png'));
+
+  const formData = new FormData();
+  formData.append('track', 'airport');
+  formData.append('hintAirport', 'JFK');
+  formData.append('receiptImage', new Blob([imgBuf], { type: 'image/png' }), 'sample_jfk_receipt.png');
+
+  const res = await fetch(`${baseUrl}/api/agent1/inspect`, {
+    method: 'POST',
+    body: formData,
+  });
+  assert.equal(res.status, 200);
+  const data = await res.json();
+  assert.ok(Array.isArray(data.extracted.annotations));
+  assert.ok(data.extracted.annotations.length >= 4);
+
+  const merchantAnn = data.extracted.annotations.find((a) => a.kind === 'merchant');
+  assert.ok(merchantAnn, 'Expected a merchant bounding-box annotation');
+  assert.equal(merchantAnn.targetField, 'merchant');
+  assert.ok(merchantAnn.bbox.widthPct > 0 && merchantAnn.bbox.heightPct > 0);
+
+  const itemAnns = data.extracted.annotations.filter((a) => a.kind === 'item');
+  assert.ok(itemAnns.length >= 3, 'Expected bounding-box annotations for all 3 receipt items');
+  itemAnns.forEach((ann, idx) => {
+    assert.equal(ann.targetField, 'item');
+    assert.equal(ann.itemIndex, idx);
+    assert.ok(ann.bbox.leftPct >= 0 && ann.bbox.topPct >= 0);
+  });
+});
+
 test('POST /api/receipts supports anonymous & encrypted consent submissions and updates Agent 2 + 3', async () => {
   const res = await fetch(`${baseUrl}/api/receipts`, {
     method: 'POST',

@@ -156,6 +156,61 @@
       display: inline-block; font-size: 11.5px; font-weight: 600;
       padding: 3px 9px; border-radius: 999px; background: var(--fair-soft); color: var(--fair);
     }
+    .m-upload-preview {
+      margin-top: 8px; background: var(--surface-warm); border: 1.5px solid hsl(150, 38%, 78%);
+      border-radius: 10px; padding: 10px;
+    }
+    .m-preview-head {
+      display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-bottom: 8px; flex-wrap: wrap;
+    }
+    .m-preview-img-wrap {
+      background: #efeae0; border: 1px solid var(--border); border-radius: 7px;
+      padding: 8px; display: flex; justify-content: center; max-height: 240px; overflow: hidden;
+    }
+    .m-preview-img-wrap img {
+      max-width: 100%; max-height: 220px; width: auto; height: auto; object-fit: contain; border-radius: 4px;
+    }
+    .m-annotated-card {
+      background: var(--surface-warm); border: 1.5px solid var(--border); border-radius: 11px;
+      padding: 12px; margin-bottom: 14px;
+    }
+    .m-stage {
+      background: #efeae0; border: 1px solid var(--border); border-radius: 8px;
+      padding: 10px 10px 10px 94px; max-height: 410px; overflow-y: auto; overflow-x: hidden;
+      display: flex; justify-content: center;
+    }
+    .m-canvas-wrap { position: relative; display: inline-block; width: 100%; max-width: 340px; }
+    .m-canvas-wrap img { display: block; width: 100%; height: auto; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+    .m-ocr-layer { position: absolute; inset: 0; pointer-events: none; }
+    .m-ocr-layer.boxes-hidden { opacity: 0; visibility: hidden; }
+    .ocr-box {
+      position: absolute; pointer-events: auto; appearance: none; padding: 0; margin: 0;
+      border-radius: 4px; cursor: pointer; z-index: 4; transition: transform 0.14s ease, box-shadow 0.14s ease;
+    }
+    .ocr-kind-merchant { border: 2px solid var(--primary); background: hsla(215, 56%, 25%, 0.12); }
+    .ocr-kind-location { border: 1.5px dashed hsl(192, 65%, 34%); background: hsla(192, 65%, 34%, 0.11); }
+    .ocr-kind-item { border: 2px solid var(--overcharge); background: hsla(10, 72%, 45%, 0.11); }
+    .ocr-kind-tax { border: 1.5px solid var(--fair); background: hsla(152, 62%, 28%, 0.11); }
+    .ocr-box.active, .ocr-box:hover { z-index: 20; transform: scale(1.015); box-shadow: 0 0 0 3px rgba(196, 61, 34, 0.25); }
+    .ocr-badge {
+      position: absolute; right: calc(100% + 5px); top: 50%; transform: translateY(-50%);
+      white-space: nowrap; font-family: var(--font-sans); font-size: 9.5px; font-weight: 700;
+      line-height: 1.2; padding: 2px 5px; border-radius: 999px; color: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    .ocr-kind-merchant .ocr-badge { background: var(--primary); }
+    .ocr-kind-location .ocr-badge { background: hsl(192, 65%, 34%); }
+    .ocr-kind-item .ocr-badge { background: var(--overcharge); }
+    .ocr-kind-tax .ocr-badge { background: var(--fair); }
+    .item-num-pill {
+      display: inline-block; font-size: 10.5px; font-weight: 700; color: var(--overcharge);
+      background: var(--overcharge-soft); padding: 2px 7px; border-radius: 999px; margin-bottom: 6px;
+    }
+    @keyframes mSpotPulse {
+      0% { box-shadow: 0 0 0 0 hsla(10, 72%, 45%, 0.55); background-color: hsl(38, 88%, 95%); }
+      65% { box-shadow: 0 0 0 5px hsla(10, 72%, 45%, 0.18); background-color: hsl(38, 88%, 96%); }
+      100% { box-shadow: 0 0 0 0 hsla(10, 72%, 45%, 0); }
+    }
+    .field-spotlight-pulse { animation: mSpotPulse 1.4s ease-out; border-color: var(--overcharge) !important; }
   </style>
 </head>
 <body>
@@ -211,6 +266,18 @@
         <div class="fg">
           <label for="m-photo">Take Photo / Upload (Location data removed automatically)</label>
           <input type="file" id="m-photo" accept="image/*" capture="environment" />
+          <div id="m-upload-preview" class="m-upload-preview hidden">
+            <div class="m-preview-head">
+              <div style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--ink-sub);">
+                <span class="badge-ok">&#10003; Photo Ready</span>
+                <span id="m-preview-meta">Receipt loaded</span>
+              </div>
+              <button type="button" class="btn-outline" style="width:auto; min-height:28px; padding:2px 8px; font-size:11.5px;" id="m-clear-photo">Remove</button>
+            </div>
+            <div class="m-preview-img-wrap">
+              <img id="m-preview-img" alt="Uploaded receipt preview" />
+            </div>
+          </div>
         </div>
         <div class="fg">
           <label for="m-text">Or Paste Receipt Text</label>
@@ -251,6 +318,23 @@
             <h2 style="margin:0;">Check Your Receipt</h2>
             <button type="button" class="btn-outline" style="width:auto; padding:4px 10px;" id="m-back-1">&larr; Back</button>
           </div>
+
+          <div id="m-annotated-box" class="m-annotated-card hidden">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:8px;">
+              <div>
+                <strong style="font-size:13.5px; display:block;">Detected on Receipt Photo</strong>
+                <span style="font-size:11.5px; color:var(--ink-sub);" id="m-annotated-sub">Tap any labeled box to scroll to its field below.</span>
+              </div>
+              <button type="button" class="btn-outline" style="width:auto; min-height:28px; padding:2px 8px; font-size:11.5px;" id="m-toggle-boxes">Hide Boxes</button>
+            </div>
+            <div class="m-stage">
+              <div class="m-canvas-wrap">
+                <img id="m-annotated-img" alt="Receipt with OCR highlights" />
+                <div id="m-ocr-layer" class="m-ocr-layer"></div>
+              </div>
+            </div>
+          </div>
+
           <div class="fg">
             <label for="m-merchant">Store Name (As Printed on Receipt) *</label>
             <input type="text" id="m-merchant" required />
@@ -446,15 +530,147 @@
       });
     });
 
+    let photoUrl = null;
+    let boxesVisible = true;
+
+    function esc(s) {
+      return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function highlightBox(annId) {
+      document.querySelectorAll('#m-ocr-layer .ocr-box').forEach((b) => {
+        b.classList.toggle('active', b.dataset.annId === annId);
+      });
+    }
+
+    function pulseField(container, input) {
+      if (!container) return;
+      container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      container.classList.remove('field-spotlight-pulse');
+      void container.offsetWidth;
+      container.classList.add('field-spotlight-pulse');
+      if (input) setTimeout(() => input.focus({ preventScroll: true }), 260);
+    }
+
+    function scrollForAnn(ann) {
+      highlightBox(ann.id);
+      if (ann.targetField === 'merchant') pulseField($('m-merchant').closest('.fg'), $('m-merchant'));
+      else if (ann.targetField === 'location') pulseField($('m-location').closest('.fg'), $('m-location'));
+      else if (ann.targetField === 'item') {
+        const box = document.querySelector(`.item-box[data-item-index="${ann.itemIndex}"]`) || document.querySelectorAll('.item-box')[ann.itemIndex];
+        pulseField(box, box?.querySelector('.mi-raw'));
+      } else if (ann.targetField === 'tax') pulseField($('m-tax').closest('.fg'), $('m-tax'));
+    }
+
+    function showPhotoPreview(file) {
+      if (photoUrl && photoUrl.startsWith('blob:')) URL.revokeObjectURL(photoUrl);
+      photoUrl = null;
+      if (!file) {
+        $('m-upload-preview').classList.add('hidden');
+        $('m-annotated-box').classList.add('hidden');
+        return;
+      }
+      photoUrl = URL.createObjectURL(file);
+      const img = $('m-preview-img');
+      img.onload = () => { $('m-preview-meta').textContent = `${file.name} • ${img.naturalWidth}×${img.naturalHeight}`; };
+      img.src = photoUrl;
+      $('m-preview-meta').textContent = `${file.name}`;
+      $('m-upload-preview').classList.remove('hidden');
+    }
+
+    function renderAnnotations(annotations = []) {
+      const card = $('m-annotated-box'), layer = $('m-ocr-layer');
+      if (!photoUrl) { card.classList.add('hidden'); layer.innerHTML = ''; return; }
+      $('m-annotated-img').src = photoUrl;
+      card.classList.remove('hidden');
+      layer.innerHTML = '';
+      layer.classList.toggle('boxes-hidden', !boxesVisible);
+      $('m-annotated-sub').textContent = annotations.length
+        ? `Found ${annotations.length} labeled line(s) — tap any box to jump to its field below.`
+        : 'Receipt photo attached above for visual comparison.';
+      annotations.forEach((ann) => {
+        if (!ann.bbox) return;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `ocr-box ocr-kind-${esc(ann.kind || 'item')}`;
+        btn.dataset.annId = ann.id;
+        btn.style.cssText = `left:${ann.bbox.leftPct}%;top:${ann.bbox.topPct}%;width:${ann.bbox.widthPct}%;height:${ann.bbox.heightPct}%;`;
+        btn.innerHTML = `<span class="ocr-badge">${esc(ann.shortBadge)}</span>`;
+        btn.addEventListener('click', () => scrollForAnn(ann));
+        layer.appendChild(btn);
+      });
+    }
+
+    function makeSampleCanvas(kind) {
+      return new Promise((resolve) => {
+        const c = document.createElement('canvas');
+        c.width = 640; c.height = 760;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#fcfaf4'; ctx.fillRect(0, 0, c.width, c.height);
+        ctx.strokeStyle = '#e2dccf'; ctx.lineWidth = 2; ctx.strokeRect(14, 14, c.width - 28, c.height - 28);
+        const rows = kind === 'airport' ? [
+          ['HUDSON NEWS #412', 92, true, 'center', 27],
+          ['JFK INTL AIRPORT - TERMINAL 4', 132, false, 'center', 20],
+          ['------------------------------------', 180, false, 'center', 20],
+          ['SMARTWATER 20OZ               $6.29', 238, true, 'left', 21],
+          ['ADVIL TRAVEL PK 10CT          $9.99', 288, true, 'left', 21],
+          ['LAYS CLASSIC 2.6OZ            $4.79', 338, true, 'left', 21],
+          ['------------------------------------', 392, false, 'center', 20],
+          ['SALES TAX                     $1.87', 442, false, 'left', 20],
+          ['TOTAL                        $22.94', 498, true, 'left', 24],
+        ] : [
+          ['QUEENS CORNER BODEGA', 92, true, 'center', 26],
+          ['144-12 JAMAICA AVE QUEENS NY', 132, false, 'center', 20],
+          ['------------------------------------', 180, false, 'center', 20],
+          ['SMARTWATER 20OZ               $2.00', 238, true, 'left', 21],
+          ['TURKEY CLUB                   $8.99', 288, true, 'left', 21],
+          ['LAYS CLASSIC 2.6OZ            $2.29', 338, true, 'left', 21],
+          ['------------------------------------', 392, false, 'center', 20],
+          ['SALES TAX                     $1.18', 442, false, 'left', 20],
+          ['TOTAL                        $14.46', 498, true, 'left', 24],
+        ];
+        ctx.fillStyle = '#1d262d';
+        rows.forEach(([txt, y, b, align, sz]) => {
+          ctx.font = `${b ? '700' : '500'} ${sz}px "Courier New", monospace`;
+          ctx.textAlign = align;
+          ctx.fillText(txt, align === 'center' ? 320 : 56, y);
+        });
+        c.toBlob((blob) => {
+          if (!blob) return resolve(null);
+          const f = new File([blob], kind === 'airport' ? 'sample_airport_receipt.png' : 'sample_local_receipt.png', { type: 'image/png' });
+          try { const dt = new DataTransfer(); dt.items.add(f); $('m-photo').files = dt.files; } catch (_) {}
+          showPhotoPreview(f);
+          resolve(f);
+        }, 'image/png');
+      });
+    }
+
+    $('m-photo').addEventListener('change', (e) => {
+      const f = e.target.files?.[0] || null;
+      if (f) $('m-text').value = '';
+      showPhotoPreview(f);
+    });
+    $('m-clear-photo').addEventListener('click', () => { $('m-photo').value = ''; showPhotoPreview(null); });
+    $('m-toggle-boxes').addEventListener('click', () => {
+      boxesVisible = !boxesVisible;
+      $('m-ocr-layer').classList.toggle('boxes-hidden', !boxesVisible);
+      $('m-toggle-boxes').textContent = boxesVisible ? 'Hide Boxes' : 'Show Boxes';
+    });
+    $('m-merchant').addEventListener('focus', () => highlightBox('ann_merchant'));
+    $('m-location').addEventListener('focus', () => highlightBox('ann_location'));
+    $('m-tax').addEventListener('focus', () => highlightBox('ann_tax'));
+
     function renderItems(items) {
       const prodOpts = Object.entries(meta.products).map(([k, p]) => `<option value="${k}">${p.label}</option>`).join('');
       $('m-items-list').innerHTML = '';
       $('m-item-count').textContent = items.length;
-      items.forEach((item) => {
+      items.forEach((item, idx) => {
         const div = document.createElement('div');
         div.className = 'item-box';
+        div.dataset.itemIndex = String(idx);
         div.innerHTML = `
-          <div class="fg"><label>Item Name</label><input type="text" class="mi-raw" value="${item.rawName || ''}" required /></div>
+          <span class="item-num-pill">Item #${idx + 1}</span>
+          <div class="fg"><label>Item Name</label><input type="text" class="mi-raw" value="${esc(item.rawName || '')}" required /></div>
           <div class="row-2">
             <div class="fg" style="margin:0"><label>Everyday Match</label><select class="mi-key">${prodOpts}</select></div>
             <div class="fg" style="margin:0"><label>Price ($)</label><input type="number" step="0.01" class="mi-price" value="${Number(item.unitPrice || 0).toFixed(2)}" required /></div>
@@ -462,6 +678,7 @@
         div.querySelector('.mi-key').value = item.standardizedProductKey || 'water_20oz';
         div.querySelector('.mi-key').addEventListener('change', recalc);
         div.querySelector('.mi-price').addEventListener('input', recalc);
+        div.addEventListener('focusin', () => highlightBox(`ann_item_${idx}`));
         $('m-items-list').appendChild(div);
       });
       recalc();
@@ -502,10 +719,11 @@
     $('m-tax').addEventListener('input', recalc);
     $('m-std-airport').addEventListener('change', recalc);
 
-    $('m-load-sample').addEventListener('click', () => {
+    $('m-load-sample').addEventListener('click', async () => {
       $('m-text').value = track === 'airport'
-        ? 'HUDSON NEWS #412\nJFK TERMINAL 4\nSMARTWATER 20OZ $6.29\nADVIL TRAVEL PK 10CT $9.99\nLAYS CLASSIC 2.6OZ $4.79\nTAX $1.87'
-        : 'QUEENS CORNER BODEGA\nSMARTWATER 20OZ $2.00\nTURKEY CLUB $8.99\nLAYS CLASSIC 2.6OZ $2.29\nTAX $1.18';
+        ? 'HUDSON NEWS #412\nJFK INTL AIRPORT - TERMINAL 4\nSMARTWATER 20OZ $6.29\nADVIL TRAVEL PK 10CT $9.99\nLAYS CLASSIC 2.6OZ $4.79\nSALES TAX $1.87'
+        : 'QUEENS CORNER BODEGA\n144-12 JAMAICA AVE QUEENS NY\nSMARTWATER 20OZ $2.00\nTURKEY CLUB $8.99\nLAYS CLASSIC 2.6OZ $2.29\nSALES TAX $1.18';
+      await makeSampleCanvas(track);
     });
 
     $('m-add-item').addEventListener('click', () => {
@@ -535,11 +753,12 @@
       const chain = ex.potentialChainAffiliation || ex.vendorAffiliation || 'Unknown / Unconfirmed';
       $('m-vendor').value = chain;
       $('m-aff-hint').classList.remove('hidden');
-      $('m-aff-hint').innerHTML = `<strong>Optional Parent Company Guess:</strong> Looks like <strong>${chain}</strong>. ${ex.affiliationReason || 'Skip or leave as Unknown if unsure.'}`;
+      $('m-aff-hint').innerHTML = `<strong>Optional Parent Company Guess:</strong> Looks like <strong>${esc(chain)}</strong>. ${esc(ex.affiliationReason || 'Skip or leave as Unknown if unsure.')}`;
       if (ex.airportCode) $('m-std-airport').value = ex.airportCode;
       $('m-location').value = ex.terminalOrLocation || '';
       $('m-tax').value = Number(ex.tax || 0).toFixed(2);
       renderItems(ex.lineItems || []);
+      renderAnnotations(ex.annotations || []);
       setStep(2);
     });
 

@@ -10,6 +10,9 @@ const state = {
   qsTrack: 'airport',
   qsSelectedKey: 'water_20oz',
   spotlightKey: 'water_20oz',
+  receiptPhotoUrl: null,
+  annotations: [],
+  boxesVisible: true,
 };
 
 const SPOTLIGHT_ITEMS = [
@@ -214,6 +217,221 @@ function updateQuickSpotPreview() {
   `;
 }
 
+function highlightOcrBox(annId) {
+  const layer = $('ocr-overlay-layer');
+  if (!layer) return;
+  layer.querySelectorAll('.ocr-box').forEach((box) => {
+    box.classList.toggle('active', box.dataset.annId === annId);
+  });
+}
+
+function pulseAndFocusField(containerEl, inputEl) {
+  if (!containerEl) return;
+  containerEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  containerEl.classList.remove('field-spotlight-pulse');
+  void containerEl.offsetWidth;
+  containerEl.classList.add('field-spotlight-pulse');
+  if (inputEl) {
+    setTimeout(() => {
+      inputEl.focus({ preventScroll: true });
+      if (typeof inputEl.select === 'function' && inputEl.type === 'text') {
+        inputEl.select();
+      }
+    }, 260);
+  }
+}
+
+function scrollToFieldForAnnotation(ann) {
+  highlightOcrBox(ann.id);
+  if (ann.targetField === 'merchant') {
+    const inp = $('std-merchant');
+    pulseAndFocusField(inp?.closest('.form-group') || inp, inp);
+  } else if (ann.targetField === 'location') {
+    const inp = $('std-location');
+    pulseAndFocusField(inp?.closest('.form-group') || inp, inp);
+  } else if (ann.targetField === 'item') {
+    const card = document.querySelector(`.line-item-card[data-item-index="${ann.itemIndex}"]`)
+      || document.querySelectorAll('.line-item-card')[ann.itemIndex];
+    const inp = card?.querySelector('.li-raw');
+    pulseAndFocusField(card, inp);
+  } else if (ann.targetField === 'tax') {
+    const inp = $('std-tax');
+    pulseAndFocusField(inp?.closest('.form-group') || inp, inp);
+  }
+}
+
+function showUploadPhotoPreview(file) {
+  const previewBox = $('upload-photo-preview');
+  const previewImg = $('upload-preview-img');
+  const previewMeta = $('upload-preview-meta');
+  const annotatedBox = $('annotated-receipt-box');
+
+  if (state.receiptPhotoUrl && state.receiptPhotoUrl.startsWith('blob:')) {
+    URL.revokeObjectURL(state.receiptPhotoUrl);
+  }
+  state.receiptPhotoUrl = null;
+  state.annotations = [];
+
+  if (!file) {
+    previewBox?.classList.add('hidden');
+    annotatedBox?.classList.add('hidden');
+    if (previewImg) previewImg.removeAttribute('src');
+    return;
+  }
+
+  const url = URL.createObjectURL(file);
+  state.receiptPhotoUrl = url;
+  if (previewImg) {
+    previewImg.onload = () => {
+      if (previewMeta) {
+        previewMeta.textContent = `${file.name} • ${previewImg.naturalWidth}×${previewImg.naturalHeight} px`;
+      }
+    };
+    previewImg.src = url;
+  }
+  if (previewMeta) {
+    previewMeta.textContent = `${file.name} • ${Math.max(1, Math.round(file.size / 1024))} KB`;
+  }
+  previewBox?.classList.remove('hidden');
+  annotatedBox?.classList.add('hidden');
+}
+
+function renderAnnotatedReceipt(annotations = []) {
+  const annotatedBox = $('annotated-receipt-box');
+  const annotatedImg = $('annotated-receipt-img');
+  const layer = $('ocr-overlay-layer');
+  const sub = $('annotated-receipt-sub');
+  if (!annotatedBox || !annotatedImg || !layer) return;
+
+  if (!state.receiptPhotoUrl) {
+    annotatedBox.classList.add('hidden');
+    layer.innerHTML = '';
+    return;
+  }
+
+  state.annotations = annotations;
+  annotatedImg.src = state.receiptPhotoUrl;
+  annotatedBox.classList.remove('hidden');
+  layer.innerHTML = '';
+  layer.classList.toggle('boxes-hidden', !state.boxesVisible);
+
+  if (!annotations.length) {
+    if (sub) {
+      sub.textContent = 'Receipt photo attached above for visual side-by-side comparison.';
+    }
+    return;
+  }
+
+  if (sub) {
+    sub.textContent = `Detected ${annotations.length} region(s) on your receipt — click any labeled box to jump directly to its field below.`;
+  }
+
+  annotations.forEach((ann) => {
+    if (!ann.bbox) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `ocr-box ocr-kind-${escapeHtml(ann.kind || 'item')}`;
+    btn.dataset.annId = ann.id;
+    btn.title = `Jump to ${ann.label || ann.shortBadge}`;
+    btn.style.left = `${ann.bbox.leftPct}%`;
+    btn.style.top = `${ann.bbox.topPct}%`;
+    btn.style.width = `${ann.bbox.widthPct}%`;
+    btn.style.height = `${ann.bbox.heightPct}%`;
+    btn.innerHTML = `<span class="ocr-badge">${escapeHtml(ann.shortBadge)}</span>`;
+    btn.addEventListener('click', () => scrollToFieldForAnnotation(ann));
+    layer.appendChild(btn);
+  });
+}
+
+function synthesizeSampleReceiptFile(kind = 'airport') {
+  return new Promise((resolve) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 640;
+    canvas.height = 780;
+    const ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = '#fcfaf4';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.strokeStyle = '#e2dccf';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(14, 14, canvas.width - 28, canvas.height - 28);
+
+    const lines =
+      kind === 'airport'
+        ? [
+            { text: 'HUDSON NEWS #412', y: 92, align: 'center', bold: true, size: 28 },
+            { text: 'JFK INTL AIRPORT - TERMINAL 4', y: 134, align: 'center', size: 21 },
+            { text: 'GATE B24 POST-SECURITY', y: 168, align: 'center', size: 20 },
+            { text: '------------------------------------', y: 210, align: 'center', size: 20 },
+            { text: '2026-05-14 14:22   REG #04', y: 248, align: 'left', size: 19 },
+            { text: '------------------------------------', y: 284, align: 'center', size: 20 },
+            { text: 'SMARTWATER 20OZ               $6.29', y: 334, align: 'left', bold: true, size: 21 },
+            { text: 'TURKEY CLUB SANDWICH         $16.99', y: 382, align: 'left', bold: true, size: 21 },
+            { text: 'LAYS CHIPS 2.6OZ              $4.49', y: 430, align: 'left', bold: true, size: 21 },
+            { text: '------------------------------------', y: 478, align: 'center', size: 20 },
+            { text: 'SUBTOTAL                     $27.77', y: 522, align: 'left', size: 20 },
+            { text: 'SALES TAX                     $2.46', y: 566, align: 'left', size: 20 },
+            { text: 'TOTAL                        $30.23', y: 620, align: 'left', bold: true, size: 24 },
+            { text: 'THANK YOU FOR FLYING JFK', y: 696, align: 'center', size: 18 },
+          ]
+        : [
+            { text: 'QUEENS CORNER MARKET', y: 92, align: 'center', bold: true, size: 27 },
+            { text: '144-12 JAMAICA AVE QUEENS NY', y: 134, align: 'center', size: 20 },
+            { text: '------------------------------------', y: 186, align: 'center', size: 20 },
+            { text: '2026-05-14 12:15   CASHIER #2', y: 226, align: 'left', size: 19 },
+            { text: '------------------------------------', y: 266, align: 'center', size: 20 },
+            { text: 'SMARTWATER 20OZ               $2.19', y: 320, align: 'left', bold: true, size: 21 },
+            { text: 'TURKEY CLUB SANDWICH          $8.99', y: 368, align: 'left', bold: true, size: 21 },
+            { text: 'LAYS CHIPS 2.6OZ              $2.29', y: 416, align: 'left', bold: true, size: 21 },
+            { text: '------------------------------------', y: 468, align: 'center', size: 20 },
+            { text: 'SUBTOTAL                     $13.47', y: 512, align: 'left', size: 20 },
+            { text: 'SALES TAX                     $1.20', y: 556, align: 'left', size: 20 },
+            { text: 'TOTAL                        $14.67', y: 610, align: 'left', bold: true, size: 24 },
+            { text: 'THANK YOU NEIGHBOR!', y: 690, align: 'center', size: 18 },
+          ];
+
+    ctx.fillStyle = '#1d262d';
+    lines.forEach((ln) => {
+      ctx.font = `${ln.bold ? '700' : '500'} ${ln.size}px "Courier New", Courier, monospace`;
+      if (ln.align === 'center') {
+        ctx.textAlign = 'center';
+        ctx.fillText(ln.text, canvas.width / 2, ln.y);
+      } else {
+        ctx.textAlign = 'left';
+        ctx.fillText(ln.text, 56, ln.y);
+      }
+    });
+
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        resolve(null);
+        return;
+      }
+      const fname = kind === 'airport' ? 'sample_jfk_hudson_receipt.png' : 'sample_queens_local_receipt.png';
+      const file = new File([blob], fname, { type: 'image/png' });
+      try {
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        const input = $('receipt-image-input');
+        if (input) input.files = dt.files;
+      } catch (_) {
+        // Ignore if DataTransfer assignment is restricted in older browsers
+      }
+      showUploadPhotoPreview(file);
+      resolve(file);
+    }, 'image/png');
+  });
+}
+
+function reindexLineItemCards() {
+  document.querySelectorAll('.line-item-card').forEach((card, idx) => {
+    card.dataset.itemIndex = String(idx);
+    const badge = card.querySelector('.line-item-num-tag');
+    if (badge) badge.textContent = `Item #${idx + 1}`;
+  });
+}
+
 function renderLineItems(items = []) {
   const container = $('line-items-container');
   const products = state.metadata.products || {};
@@ -233,10 +451,12 @@ function renderLineItems(items = []) {
   }
 
   container.innerHTML = '';
-  items.forEach((item) => {
+  items.forEach((item, idx) => {
     const card = document.createElement('div');
     card.className = 'line-item-card';
+    card.dataset.itemIndex = String(idx);
     card.innerHTML = `
+      <div class="line-item-num-tag">Item #${idx + 1}</div>
       <div class="line-item-grid">
         <div>
           <label>Item on Receipt</label>
@@ -266,9 +486,14 @@ function renderLineItems(items = []) {
       keySelect.value = 'water_20oz';
     }
 
+    card.addEventListener('focusin', () => {
+      highlightOcrBox(`ann_item_${card.dataset.itemIndex}`);
+    });
+
     card.querySelector('.li-remove').addEventListener('click', () => {
       if (container.children.length > 1) {
         card.remove();
+        reindexLineItemCards();
         recalcTotals();
       }
     });
@@ -745,18 +970,44 @@ document.querySelectorAll('input[name="privacyMode"]').forEach((radio) => {
   });
 });
 
-$('load-sample-airport')?.addEventListener('click', () => {
+$('receipt-image-input')?.addEventListener('change', (e) => {
+  const file = e.target.files?.[0] || null;
+  if (file && $('receipt-raw-text')) {
+    $('receipt-raw-text').value = '';
+  }
+  showUploadPhotoPreview(file);
+});
+
+$('btn-clear-photo')?.addEventListener('click', () => {
+  const input = $('receipt-image-input');
+  if (input) input.value = '';
+  showUploadPhotoPreview(null);
+});
+
+$('btn-toggle-boxes')?.addEventListener('click', () => {
+  state.boxesVisible = !state.boxesVisible;
+  $('ocr-overlay-layer')?.classList.toggle('boxes-hidden', !state.boxesVisible);
+  $('btn-toggle-boxes').textContent = state.boxesVisible ? 'Hide Boxes' : 'Show Boxes';
+});
+
+$('std-merchant')?.addEventListener('focus', () => highlightOcrBox('ann_merchant'));
+$('std-location')?.addEventListener('focus', () => highlightOcrBox('ann_location'));
+$('std-tax')?.addEventListener('focus', () => highlightOcrBox('ann_tax'));
+
+$('load-sample-airport')?.addEventListener('click', async () => {
   setTrack('airport');
   $('hint-airport').value = 'JFK';
   $('receipt-raw-text').value =
-    'HUDSON NEWS #412 JFK TERMINAL 4\nSMARTWATER 20OZ $6.29\nTURKEY CLUB SANDWICH $16.99\nLAYS CHIPS 2.6OZ $4.49\nTAX $2.46';
+    'HUDSON NEWS #412\nJFK INTL AIRPORT - TERMINAL 4\nGATE B24 POST-SECURITY\nSMARTWATER 20OZ $6.29\nTURKEY CLUB SANDWICH $16.99\nLAYS CHIPS 2.6OZ $4.49\nSALES TAX $2.46';
+  await synthesizeSampleReceiptFile('airport');
 });
 
-$('load-sample-street')?.addEventListener('click', () => {
+$('load-sample-street')?.addEventListener('click', async () => {
   setTrack('street');
   $('hint-airport').value = 'JFK';
   $('receipt-raw-text').value =
-    'QUEENS CORNER BODEGA & MARKET\nSMARTWATER 20OZ $2.19\nTURKEY CLUB SANDWICH $8.99\nLAYS CHIPS 2.6OZ $2.29\nTAX $1.20';
+    'QUEENS CORNER MARKET\n144-12 JAMAICA AVE QUEENS NY\nSMARTWATER 20OZ $2.19\nTURKEY CLUB SANDWICH $8.99\nLAYS CHIPS 2.6OZ $2.29\nSALES TAX $1.20';
+  await synthesizeSampleReceiptFile('street');
 });
 
 $('btn-add-item')?.addEventListener('click', () => {
@@ -812,11 +1063,17 @@ $('btn-run-agent1')?.addEventListener('click', async () => {
     if (ex.purchaseTime) $('std-time').value = ex.purchaseTime;
     $('std-tax').value = Number(ex.tax || 0).toFixed(2);
     renderLineItems(ex.lineItems || []);
+    renderAnnotatedReceipt(ex.annotations || []);
 
-    $('agent1-meta').textContent = `Last scan: ${ex.lineItems?.length || 0} item(s) pre-filled`;
+    if ($('agent1-meta')) {
+      $('agent1-meta').textContent = `Last scan: ${ex.lineItems?.length || 0} item(s) pre-filled`;
+    }
     statusEl.classList.remove('hidden');
     statusEl.classList.add('success');
-    statusEl.innerHTML = `<strong>Pre-filled ${ex.lineItems?.length || 0} item(s)!</strong> Please glance over the right-hand form to make sure prices match your receipt.`;
+    const boxNote = (ex.annotations && ex.annotations.length)
+      ? ' Click any labeled box on your receipt photo on the right to jump straight to that field.'
+      : ' Please glance over the right-hand form to make sure prices match your receipt.';
+    statusEl.innerHTML = `<strong>Pre-filled ${ex.lineItems?.length || 0} item(s)!</strong>${boxNote}`;
   } catch (err) {
     statusEl.classList.remove('hidden', 'success');
     statusEl.textContent = 'Could not read receipt: ' + err.message;

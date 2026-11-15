@@ -54,18 +54,18 @@ function inferPotentialChainAffiliation({ merchantName = '', rawText = '', track
   };
 }
 
-async function extractTextWithTesseract(imageBase64, imageMimeType) {
-  if (!imageBase64) return '';
+async function extractOcrWithBoxes(imageBase64, imageMimeType) {
+  if (!imageBase64) return { rawText: '', ocrLines: [], pageSize: null };
   const ext = imageMimeType && imageMimeType.includes('jpeg') ? 'jpg' : 'png';
   const tmpPath = path.join('/tmp', `apw_ocr_${Date.now()}_${Math.random().toString(16).slice(2)}.${ext}`);
   try {
     fs.writeFileSync(tmpPath, Buffer.from(imageBase64, 'base64'));
-    const { stdout } = await execFileAsync('tesseract', [tmpPath, 'stdout', '--psm', '6'], {
+    const { stdout } = await execFileAsync('tesseract', [tmpPath, 'stdout', '--psm', '6', 'tsv'], {
       timeout: 15000,
     });
-    return stdout || '';
+    return parseTesseractTsv(stdout || '');
   } catch (err) {
-    return '';
+    return { rawText: '', ocrLines: [], pageSize: null };
   } finally {
     if (fs.existsSync(tmpPath)) {
       fs.unlinkSync(tmpPath);
@@ -73,11 +73,194 @@ async function extractTextWithTesseract(imageBase64, imageMimeType) {
   }
 }
 
+function parseTesseractTsv(tsvText) {
+  const rows = tsvText.split(/\r?\n/).filter(Boolean);
+  if (rows.length < 2) return { rawText: '', ocrLines: [], pageSize: null };
+
+  let pageWidth = 0;
+  let pageHeight = 0;
+  const lineMap = new Map();
+
+  for (let i = 1; i < rows.length; i++) {
+    const cols = rows[i].split('\t');
+    if (cols.length < 12) continue;
+    const level = parseInt(cols[0], 10);
+    const blockNum = cols[2];
+    const parNum = cols[3];
+    const lineNum = cols[4];
+    const left = parseInt(cols[6], 10) || 0;
+    const top = parseInt(cols[7], 10) || 0;
+    const width = parseInt(cols[8], 10) || 0;
+    const height = parseInt(cols[9], 10) || 0;
+    const word = (cols[11] || '').trim();
+
+    if (level === 1 && width > 0 && height > 0) {
+      pageWidth = width;
+      pageHeight = height;
+    } else if (level === 4 && width > 0 && height > 0) {
+      const key = `${blockNum}_${parNum}_${lineNum}`;
+      lineMap.set(key, { left, top, right: left + width, bottom: top + height, words: [] });
+    } else if (level === 5 && word) {
+      const key = `${blockNum}_${parNum}_${lineNum}`;
+      if (!lineMap.has(key)) {
+        lineMap.set(key, { left, top, right: left + width, bottom: top + height, words: [] });
+      }
+      const entry = lineMap.get(key);
+      entry.left = Math.min(entry.left, left);
+      entry.top = Math.min(entry.top, top);
+      entry.right = Math.max(entry.right, left + width);
+      entry.bottom = Math.max(entry.bottom, top + height);
+      entry.words.push(word);
+    }
+  }
+
+  const ocrLines = [];
+  for (const entry of lineMap.values()) {
+    const text = entry.words.join(' ').trim();
+    if (!text) continue;
+    let bbox = null;
+    if (pageWidth > 0 && pageHeight > 0) {
+      const padX = 0.85;
+      const padY = 0.6;
+      const leftPct = Math.max(0, Number(((entry.left / pageWidth) * 100 - padX).toFixed(2)));
+      const topPct = Math.max(0, Number(((entry.top / pageHeight) * 100 - padY).toFixed(2)));
+      const widthPct = Math.min(
+        100 - leftPct,
+        Number((((entry.right - entry.left) / pageWidth) * 100 + padX * 2).toFixed(2))
+      );
+      const heightPct = Math.min(
+        100 - topPct,
+        Number((((entry.bottom - entry.top) / pageHeight) * 100 + padY * 2).toFixed(2))
+      );
+      bbox = { leftPct, topPct, widthPct, heightPct };
+    }
+    ocrLines.push({ text, bbox });
+  }
+
+  return {
+    rawText: ocrLines.map((l) => l.text).join('\n'),
+    ocrLines,
+    pageSize: pageWidth > 0 ? { width: pageWidth, height: pageHeight } : null,
+  };
+}
+
+function mergeBboxes(b1, b2) {
+  if (!b1) return b2;
+  if (!b2) return b1;
+  const leftPct = Math.min(b1.leftPct, b2.leftPct);
+  const topPct = Math.min(b1.topPct, b2.topPct);
+  const rightPct = Math.max(b1.leftPct + b1.widthPct, b2.leftPct + b2.widthPct);
+  const bottomPct = Math.max(b1.topPct + b1.heightPct, b2.topPct + b2.heightPct);
+  return {
+    leftPct: Number(leftPct.toFixed(2)),
+    topPct: Number(topPct.toFixed(2)),
+    widthPct: Number((rightPct - leftPct).toFixed(2)),
+    heightPct: Number((bottomPct - topPct).toFixed(2)),
+  };
+}
+
+function buildReceiptAnnotations(extracted, ocrLines = []) {
+  if (!Array.isArray(ocrLines) || ocrLines.length === 0) return [];
+  const usedIndices = new Set();
+  const annotations = [];
+  const norm = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+  // 1. Store / Vendor box
+  const merchantNorm = norm(extracted.merchantName);
+  let merchantIdx = ocrLines.findIndex(
+    (l) => l.bbox && merchantNorm && (norm(l.text).includes(merchantNorm) || merchantNorm.includes(norm(l.text)))
+  );
+  if (merchantIdx === -1) {
+    merchantIdx = ocrLines.findIndex(
+      (l) => l.bbox && !/^\s*(=|-)+\s*$/.test(l.text) && !/\$\s*\d+\.\d{2}/.test(l.text)
+    );
+  }
+  if (merchantIdx !== -1 && ocrLines[merchantIdx]?.bbox) {
+    usedIndices.add(merchantIdx);
+    annotations.push({
+      id: 'ann_merchant',
+      kind: 'merchant',
+      targetField: 'merchant',
+      shortBadge: 'Store',
+      label: `Store: ${extracted.merchantName}`,
+      bbox: ocrLines[merchantIdx].bbox,
+    });
+  }
+
+  // 2. Location / Terminal box
+  const locIndices = [];
+  ocrLines.forEach((l, idx) => {
+    if (!usedIndices.has(idx) && l.bbox && /TERMINAL|CONCOURSE|GATE|POST-SEC|AVE\b|BLVD|RD\b/i.test(l.text)) {
+      locIndices.push(idx);
+    }
+  });
+  if (locIndices.length > 0) {
+    let locBox = null;
+    locIndices.slice(0, 2).forEach((idx) => {
+      usedIndices.add(idx);
+      locBox = mergeBboxes(locBox, ocrLines[idx].bbox);
+    });
+    if (locBox) {
+      annotations.push({
+        id: 'ann_location',
+        kind: 'location',
+        targetField: 'location',
+        shortBadge: 'Location',
+        label: `Location: ${extracted.terminalOrLocation}`,
+        bbox: locBox,
+      });
+    }
+  }
+
+  // 3. Line Item boxes
+  (extracted.lineItems || []).forEach((item, itemIdx) => {
+    const itemNorm = norm(item.rawName);
+    const priceStr = Number(item.unitPrice || 0).toFixed(2);
+    const matchIdx = ocrLines.findIndex((l, idx) => {
+      if (usedIndices.has(idx) || !l.bbox) return false;
+      if (/subtotal|sub-total|total|tax/i.test(l.text)) return false;
+      const lineNorm = norm(l.text);
+      return (itemNorm && lineNorm.includes(itemNorm.slice(0, Math.min(8, itemNorm.length)))) || l.text.includes(priceStr);
+    });
+    if (matchIdx !== -1 && ocrLines[matchIdx]?.bbox) {
+      usedIndices.add(matchIdx);
+      item.bbox = ocrLines[matchIdx].bbox;
+      annotations.push({
+        id: `ann_item_${itemIdx}`,
+        kind: 'item',
+        targetField: 'item',
+        itemIndex: itemIdx,
+        shortBadge: `Item ${itemIdx + 1} • $${priceStr}`,
+        label: `${item.rawName} ($${priceStr})`,
+        bbox: ocrLines[matchIdx].bbox,
+      });
+    }
+  });
+
+  // 4. Tax box
+  const taxIdx = ocrLines.findIndex(
+    (l, idx) => !usedIndices.has(idx) && l.bbox && /(?:sales\s+)?tax\b/i.test(l.text)
+  );
+  if (taxIdx !== -1 && ocrLines[taxIdx]?.bbox) {
+    usedIndices.add(taxIdx);
+    annotations.push({
+      id: 'ann_tax',
+      kind: 'tax',
+      targetField: 'tax',
+      shortBadge: `Tax • $${Number(extracted.tax || 0).toFixed(2)}`,
+      label: `Sales Tax ($${Number(extracted.tax || 0).toFixed(2)})`,
+      bbox: ocrLines[taxIdx].bbox,
+    });
+  }
+
+  return annotations;
+}
+
 /**
  * Deterministic receipt parser fallback when GEMINI_API_KEY is not set
  * or when testing locally without external API calls.
  */
-function deterministicReceiptParse({ rawText = '', track = 'airport', hintAirport = 'JFK', ocrUsed = false }) {
+function deterministicReceiptParse({ rawText = '', ocrLines = [], track = 'airport', hintAirport = 'JFK', ocrUsed = false }) {
   const lines = rawText
     .split(/\r?\n/)
     .map((l) => l.trim())
@@ -192,7 +375,7 @@ function deterministicReceiptParse({ rawText = '', track = 'airport', hintAirpor
   const totalMatch = rawText.match(/(?:^|\n)\s*total[:\s]+\$?\s*(\d+\.\d{2})/im);
   const total = totalMatch ? parseFloat(totalMatch[1]) : Number((subtotal + tax).toFixed(2));
 
-  return {
+  const result = {
     merchantName,
     vendorAffiliation: affiliation.potentialChainAffiliation,
     potentialChainAffiliation: affiliation.potentialChainAffiliation,
@@ -205,8 +388,12 @@ function deterministicReceiptParse({ rawText = '', track = 'airport', hintAirpor
     lineItems,
     tax,
     total,
+    annotations: [],
     aiNotes: `Extracted ${lineItems.length} item(s)${ocrUsed ? ' via receipt OCR' : ''}. Store brand recorded as "${merchantName}". Potential chain affiliation ("${affiliation.potentialChainAffiliation}") is optional—confirm or change if known.`,
   };
+
+  result.annotations = buildReceiptAnnotations(result, ocrLines);
+  return result;
 }
 
 function classifyItem(rawName) {
@@ -293,11 +480,16 @@ ${rawText || '(See attached receipt image — extract every purchased line item)
     imageMimeType,
   });
 
+  const ocrData = imageBase64
+    ? await extractOcrWithBoxes(imageBase64, imageMimeType)
+    : { rawText: '', ocrLines: [], pageSize: null };
+
   if (geminiResult.ok && geminiResult.data && Array.isArray(geminiResult.data.lineItems)) {
     const ex = geminiResult.data;
     if (!ex.vendorAffiliation) {
       ex.vendorAffiliation = ex.potentialChainAffiliation || 'Unknown / Unconfirmed';
     }
+    ex.annotations = buildReceiptAnnotations(ex, ocrData.ocrLines);
     return {
       agent: 'Agent 1: Intake & Standardization',
       mode: geminiResult.mode,
@@ -310,12 +502,18 @@ ${rawText || '(See attached receipt image — extract every purchased line item)
 
   let effectiveText = rawText || '';
   let ocrUsed = false;
-  if (!effectiveText.trim() && imageBase64) {
-    effectiveText = await extractTextWithTesseract(imageBase64, imageMimeType);
+  if (!effectiveText.trim() && ocrData.rawText) {
+    effectiveText = ocrData.rawText;
     ocrUsed = Boolean(effectiveText.trim());
   }
 
-  const fallback = deterministicReceiptParse({ rawText: effectiveText, track, hintAirport, ocrUsed });
+  const fallback = deterministicReceiptParse({
+    rawText: effectiveText,
+    ocrLines: ocrData.ocrLines,
+    track,
+    hintAirport,
+    ocrUsed,
+  });
   return {
     agent: 'Agent 1: Intake & Standardization',
     mode: ocrUsed ? 'local-tesseract-ocr' : 'local-deterministic-fallback',

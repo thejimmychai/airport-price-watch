@@ -239,6 +239,18 @@
             <div class="form-group">
               <label for="receipt-image-input">Upload Receipt Photo (Location metadata removed automatically)</label>
               <input type="file" id="receipt-image-input" accept="image/jpeg,image/png,image/webp" />
+              <div id="upload-photo-preview" class="receipt-upload-preview hidden">
+                <div class="upload-preview-head">
+                  <div class="upload-preview-status">
+                    <span class="badge badge-fair">&#10003; Photo Ready</span>
+                    <span id="upload-preview-meta">Receipt image loaded</span>
+                  </div>
+                  <button type="button" class="btn btn-outline btn-xs" id="btn-clear-photo">Change / Remove</button>
+                </div>
+                <div class="upload-preview-img-wrap">
+                  <img id="upload-preview-img" alt="Uploaded receipt preview" />
+                </div>
+              </div>
             </div>
 
             <div class="form-group">
@@ -313,8 +325,30 @@
           </div>
 
           <form id="standardized-receipt-form">
+            <div id="annotated-receipt-box" class="annotated-receipt-card hidden">
+              <div class="annotated-receipt-top">
+                <div>
+                  <h4>Detected on Your Receipt</h4>
+                  <p class="annotated-receipt-sub" id="annotated-receipt-sub">Click any labeled box on the photo to jump directly to its field below.</p>
+                </div>
+                <button type="button" class="btn btn-outline btn-xs" id="btn-toggle-boxes">Hide Boxes</button>
+              </div>
+              <div class="ocr-legend">
+                <span class="ocr-legend-pill"><span class="ocr-legend-dot merchant"></span>Store / Vendor</span>
+                <span class="ocr-legend-pill"><span class="ocr-legend-dot location"></span>Location</span>
+                <span class="ocr-legend-pill"><span class="ocr-legend-dot item"></span>Line Items</span>
+                <span class="ocr-legend-pill"><span class="ocr-legend-dot tax"></span>Sales Tax</span>
+              </div>
+              <div class="receipt-stage">
+                <div class="receipt-canvas-wrap">
+                  <img id="annotated-receipt-img" alt="Receipt with interactive OCR boxes" />
+                  <div id="ocr-overlay-layer" class="ocr-overlay-layer"></div>
+                </div>
+              </div>
+            </div>
+
             <div class="form-row">
-              <div class="form-group">
+              <div class="form-group" id="fg-std-merchant">
                 <label for="std-merchant">Store Name (As Printed on Receipt) *</label>
                 <input type="text" id="std-merchant" required placeholder="e.g. Starbucks #7140 or Hudson News" />
               </div>
