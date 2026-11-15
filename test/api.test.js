@@ -124,6 +124,45 @@ test('POST /api/agent1/inspect returns OCR bounding-box annotations for vendor a
   });
 });
 
+test('POST /api/agent1/inspect smart OCR extracts all 8 regions accurately on LAX HMSHost receipt even with wrong airport hint', async () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const imgBuf = fs.readFileSync(path.join(__dirname, 'fixtures', 'sample_lax_receipt.png'));
+
+  const formData = new FormData();
+  formData.append('track', 'airport');
+  formData.append('hintAirport', 'JFK'); // Intentionally wrong hint — OCR must auto-detect LAX
+  formData.append('receiptImage', new Blob([imgBuf], { type: 'image/png' }), 'sample_lax_receipt.png');
+
+  const res = await fetch(`${baseUrl}/api/agent1/inspect`, {
+    method: 'POST',
+    body: formData,
+  });
+  assert.equal(res.status, 200);
+  const { extracted } = await res.json();
+
+  assert.equal(extracted.airportCode, 'LAX');
+  assert.equal(extracted.merchantName, 'STARBUCKS #7140 (HMSHOST)');
+  assert.equal(extracted.potentialChainAffiliation, 'HMSHost (Avolta)');
+  assert.ok(
+    extracted.terminalOrLocation.includes('TERMINAL 6') && extracted.terminalOrLocation.includes('GATE 64A'),
+    `Expected clean Terminal 6 / Gate 64A location without HMSHOST collision, got: ${extracted.terminalOrLocation}`
+  );
+  assert.ok(!extracted.terminalOrLocation.includes('HMSHOST'));
+  assert.equal(extracted.purchaseDate, '2026-11-14');
+  assert.equal(extracted.purchaseTime, '08:14');
+  assert.equal(extracted.lineItems.length, 3);
+  assert.equal(extracted.lineItems[0].rawName, 'GRANDE CAFFE LATTE 16OZ');
+  assert.equal(extracted.lineItems[2].rawName, 'ETHOS BOTTLED WATER 20OZ');
+  assert.equal(extracted.tax, 2.86);
+  assert.equal(extracted.total, 33.01);
+
+  const kinds = new Set(extracted.annotations.map((a) => a.kind));
+  for (const expectedKind of ['merchant', 'vendor', 'airport', 'location', 'datetime', 'item', 'tax', 'total']) {
+    assert.ok(kinds.has(expectedKind), `Missing annotation kind: ${expectedKind}`);
+  }
+});
+
 test('POST /api/receipts supports anonymous & encrypted consent submissions and updates Agent 2 + 3', async () => {
   const res = await fetch(`${baseUrl}/api/receipts`, {
     method: 'POST',

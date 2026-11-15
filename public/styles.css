@@ -1236,7 +1236,9 @@ textarea {
 }
 
 .ocr-legend-dot.merchant { background: var(--primary); }
+.ocr-legend-dot.vendor { background: hsl(252, 42%, 44%); }
 .ocr-legend-dot.location { background: hsl(192, 65%, 34%); }
+.ocr-legend-dot.datetime { background: hsl(32, 78%, 36%); }
 .ocr-legend-dot.item { background: var(--overcharge); }
 .ocr-legend-dot.tax { background: var(--fair); }
 
@@ -1244,8 +1246,8 @@ textarea {
   background: #efeae0;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 14px 16px 14px 116px;
-  max-height: 500px;
+  padding: 14px 16px 14px 124px;
+  max-height: 520px;
   overflow-y: auto;
   overflow-x: hidden;
   display: flex;
@@ -1295,9 +1297,20 @@ textarea {
   background: hsla(215, 56%, 25%, 0.11);
 }
 
+.ocr-box.ocr-kind-vendor {
+  border: 1.5px dashed hsl(252, 42%, 44%);
+  background: hsla(252, 42%, 44%, 0.10);
+}
+
+.ocr-box.ocr-kind-airport,
 .ocr-box.ocr-kind-location {
   border: 1.5px dashed hsl(192, 65%, 34%);
   background: hsla(192, 65%, 34%, 0.10);
+}
+
+.ocr-box.ocr-kind-datetime {
+  border: 1.5px dotted hsl(32, 78%, 36%);
+  background: hsla(32, 78%, 36%, 0.09);
 }
 
 .ocr-box.ocr-kind-item {
@@ -1305,7 +1318,8 @@ textarea {
   background: hsla(10, 72%, 45%, 0.10);
 }
 
-.ocr-box.ocr-kind-tax {
+.ocr-box.ocr-kind-tax,
+.ocr-box.ocr-kind-total {
   border: 1.5px solid var(--fair);
   background: hsla(152, 62%, 28%, 0.10);
 }
@@ -1324,10 +1338,24 @@ textarea {
   box-shadow: 0 0 0 3px hsla(215, 56%, 25%, 0.24);
 }
 
+.ocr-box.ocr-kind-vendor:hover,
+.ocr-box.ocr-kind-vendor.active {
+  background: hsla(252, 42%, 44%, 0.22);
+  box-shadow: 0 0 0 3px hsla(252, 42%, 44%, 0.24);
+}
+
+.ocr-box.ocr-kind-airport:hover,
+.ocr-box.ocr-kind-airport.active,
 .ocr-box.ocr-kind-location:hover,
 .ocr-box.ocr-kind-location.active {
   background: hsla(192, 65%, 34%, 0.22);
   box-shadow: 0 0 0 3px hsla(192, 65%, 34%, 0.24);
+}
+
+.ocr-box.ocr-kind-datetime:hover,
+.ocr-box.ocr-kind-datetime.active {
+  background: hsla(32, 78%, 36%, 0.20);
+  box-shadow: 0 0 0 3px hsla(32, 78%, 36%, 0.24);
 }
 
 .ocr-box.ocr-kind-item:hover,
@@ -1337,7 +1365,9 @@ textarea {
 }
 
 .ocr-box.ocr-kind-tax:hover,
-.ocr-box.ocr-kind-tax.active {
+.ocr-box.ocr-kind-tax.active,
+.ocr-box.ocr-kind-total:hover,
+.ocr-box.ocr-kind-total.active {
   background: hsla(152, 62%, 28%, 0.21);
   box-shadow: 0 0 0 3px hsla(152, 62%, 28%, 0.24);
 }
@@ -1349,9 +1379,9 @@ textarea {
   transform: translateY(-50%);
   white-space: nowrap;
   font-family: var(--font-sans);
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.15;
   padding: 2px 6px;
   border-radius: 999px;
   color: #fff;
@@ -1360,9 +1390,13 @@ textarea {
 }
 
 .ocr-kind-merchant .ocr-badge { background: var(--primary); }
+.ocr-kind-vendor .ocr-badge { background: hsl(252, 42%, 44%); }
+.ocr-kind-airport .ocr-badge,
 .ocr-kind-location .ocr-badge { background: hsl(192, 65%, 34%); }
+.ocr-kind-datetime .ocr-badge { background: hsl(32, 78%, 36%); }
 .ocr-kind-item .ocr-badge { background: var(--overcharge); }
-.ocr-kind-tax .ocr-badge { background: var(--fair); }
+.ocr-kind-tax .ocr-badge,
+.ocr-kind-total .ocr-badge { background: var(--fair); }
 
 .line-item-num-tag {
   display: inline-flex;

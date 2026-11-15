@@ -243,19 +243,23 @@ function pulseAndFocusField(containerEl, inputEl) {
 
 function scrollToFieldForAnnotation(ann) {
   highlightOcrBox(ann.id);
-  if (ann.targetField === 'merchant') {
-    const inp = $('std-merchant');
-    pulseAndFocusField(inp?.closest('.form-group') || inp, inp);
-  } else if (ann.targetField === 'location') {
-    const inp = $('std-location');
-    pulseAndFocusField(inp?.closest('.form-group') || inp, inp);
-  } else if (ann.targetField === 'item') {
-    const card = document.querySelector(`.line-item-card[data-item-index="${ann.itemIndex}"]`)
-      || document.querySelectorAll('.line-item-card')[ann.itemIndex];
+  const fieldMap = {
+    merchant: 'std-merchant',
+    vendor: 'std-vendor',
+    airport: 'std-airport',
+    location: 'std-location',
+    datetime: 'std-date',
+    tax: 'std-tax',
+    total: 'std-total',
+  };
+  if (ann.targetField === 'item') {
+    const card =
+      document.querySelector(`.line-item-card[data-item-index="${ann.itemIndex}"]`) ||
+      document.querySelectorAll('.line-item-card')[ann.itemIndex];
     const inp = card?.querySelector('.li-raw');
     pulseAndFocusField(card, inp);
-  } else if (ann.targetField === 'tax') {
-    const inp = $('std-tax');
+  } else if (fieldMap[ann.targetField]) {
+    const inp = $(fieldMap[ann.targetField]);
     pulseAndFocusField(inp?.closest('.form-group') || inp, inp);
   }
 }
@@ -991,8 +995,13 @@ $('btn-toggle-boxes')?.addEventListener('click', () => {
 });
 
 $('std-merchant')?.addEventListener('focus', () => highlightOcrBox('ann_merchant'));
+$('std-vendor')?.addEventListener('focus', () => highlightOcrBox('ann_vendor'));
+$('std-airport')?.addEventListener('focus', () => highlightOcrBox('ann_airport'));
 $('std-location')?.addEventListener('focus', () => highlightOcrBox('ann_location'));
+$('std-date')?.addEventListener('focus', () => highlightOcrBox('ann_datetime'));
+$('std-time')?.addEventListener('focus', () => highlightOcrBox('ann_datetime'));
 $('std-tax')?.addEventListener('focus', () => highlightOcrBox('ann_tax'));
+$('std-total')?.addEventListener('focus', () => highlightOcrBox('ann_total'));
 
 $('load-sample-airport')?.addEventListener('click', async () => {
   setTrack('airport');

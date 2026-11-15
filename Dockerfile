@@ -1,6 +1,9 @@
 FROM node:24-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tesseract-ocr \
+    python3-minimal \
+    python3-pil \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/app
