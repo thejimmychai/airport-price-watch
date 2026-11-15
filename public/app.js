@@ -127,17 +127,32 @@ function getStreetRefForProduct(productKey, airportCode) {
 }
 
 function populateSelects() {
+  if (window.WorldAirports?.AIRPORT_METADATA) {
+    state.metadata.airports = window.WorldAirports.AIRPORT_METADATA;
+  }
   const airports = state.metadata.airports || {};
   const vendors = state.metadata.vendors || [];
+  const activeCodes = [...new Set((state.receipts || []).map((r) => r.airportCode).filter(Boolean))];
 
-  const airportOptions = Object.entries(airports)
-    .map(([code, meta]) => `<option value="${code}">${code} — ${escapeHtml(meta.city)}</option>`)
-    .join('');
-
-  $('hint-airport').innerHTML = airportOptions;
-  $('std-airport').innerHTML = airportOptions;
-  $('qs-airport').innerHTML = airportOptions;
-  $('filter-airport').innerHTML = '<option value="all">All Cities</option>' + airportOptions;
+  if (window.WorldAirports?.enhanceAirportSelect) {
+    window.WorldAirports.enhanceAirportSelect($('hint-airport'));
+    window.WorldAirports.enhanceAirportSelect($('std-airport'));
+    window.WorldAirports.enhanceAirportSelect($('qs-airport'));
+    window.WorldAirports.enhanceAirportSelect($('filter-airport'), {
+      includeAll: true,
+      allLabel: 'All Cities & Airports Worldwide',
+      activeCodes,
+      compact: true,
+    });
+  } else {
+    const airportOptions = Object.entries(airports)
+      .map(([code, meta]) => `<option value="${code}">${code} — ${escapeHtml(meta.city)}</option>`)
+      .join('');
+    $('hint-airport').innerHTML = airportOptions;
+    $('std-airport').innerHTML = airportOptions;
+    $('qs-airport').innerHTML = airportOptions;
+    $('filter-airport').innerHTML = '<option value="all">All Cities</option>' + airportOptions;
+  }
 
   $('std-vendor').innerHTML = vendors
     .map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`)
@@ -755,16 +770,17 @@ function renderDashboard() {
   const maxMarkup = Math.max(220, ...viz.airportGapChart.map((a) => a.avgMarkupPct));
   $('chart-airport-gap').innerHTML = viz.airportGapChart
     .map((a) => {
+      const code = a.airportCode || a.label;
       const widthPct = Math.min(100, (Math.max(0, a.avgMarkupPct) / maxMarkup) * 100);
       const capPosPct = Math.min(100, (a.policyCapPct / maxMarkup) * 100);
-      const city = state.metadata.airports?.[a.airportCode]?.city || a.region;
+      const city = state.metadata.airports?.[code]?.city || a.region;
       return `
         <div class="bar-row">
           <div class="bar-meta">
-            <span class="bar-name">${escapeHtml(a.airportCode)} &mdash; ${escapeHtml(city)}</span>
+            <span class="bar-name">${escapeHtml(code)} &mdash; ${escapeHtml(city)}</span>
             <span class="bar-figure ${a.exceedsCap ? 'text-overcharge' : 'text-fair'}">+${a.avgMarkupPct}% <small style="font-weight:400; color:var(--ink-muted);">(Rule: +${a.policyCapPct}%)</small></span>
           </div>
-          <div class="bar-track" title="Dark vertical line marks ${a.airportCode}'s +${a.policyCapPct}% fair-pricing promise">
+          <div class="bar-track" title="Dark vertical line marks ${code}'s +${a.policyCapPct}% fair-pricing promise">
             <div class="bar-fill ${a.exceedsCap ? 'overcharge' : 'fair'}" style="width:${widthPct}%"></div>
             <div class="fair-rule-line" style="left:${capPosPct}%"></div>
           </div>
@@ -877,6 +893,11 @@ function renderDashboard() {
 }
 
 function renderReceiptsTable() {
+  if ($('filter-airport')?._apwPicker) {
+    $('filter-airport')._apwPicker.setActiveCodes(
+      [...new Set((state.receipts || []).map((r) => r.airportCode).filter(Boolean))]
+    );
+  }
   const trackFilter = $('filter-track').value;
   const airportFilter = $('filter-airport').value;
   const search = $('filter-search').value.trim().toLowerCase();

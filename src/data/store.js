@@ -4,16 +4,12 @@ const path = require('path');
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 
-const AIRPORT_METADATA = {
-  JFK: { name: 'John F. Kennedy International', city: 'New York, NY', region: 'Northeast', policyCapPct: 10 },
-  LAX: { name: 'Los Angeles International', city: 'Los Angeles, CA', region: 'West Coast', policyCapPct: 15 },
-  ORD: { name: "Chicago O'Hare International", city: 'Chicago, IL', region: 'Midwest', policyCapPct: 10 },
-  ATL: { name: 'Hartsfield-Jackson Atlanta', city: 'Atlanta, GA', region: 'South', policyCapPct: 15 },
-  DEN: { name: 'Denver International', city: 'Denver, CO', region: 'Mountain West', policyCapPct: 15 },
-  SFO: { name: 'San Francisco International', city: 'San Francisco, CA', region: 'West Coast', policyCapPct: 15 },
-  SEA: { name: 'Seattle-Tacoma International', city: 'Seattle, WA', region: 'West Coast', policyCapPct: 12 },
-  DFW: { name: 'Dallas/Fort Worth International', city: 'Dallas, TX', region: 'South', policyCapPct: 15 },
-};
+const {
+  AIRPORT_METADATA,
+  WORLD_AIRPORTS_LIST,
+  FEATURED_AIRPORT_CODES,
+  detectGlobalAirportFromText,
+} = require('../../public/world-airports');
 
 const STANDARD_PRODUCTS = {
   water_20oz: { label: 'Bottled Water (20 oz)', category: 'Bottled Water & Beverages', streetRefPrice: 2.19 },
@@ -348,6 +344,9 @@ function saveDb(db) {
 
 module.exports = {
   AIRPORT_METADATA,
+  WORLD_AIRPORTS_LIST,
+  FEATURED_AIRPORT_CODES,
+  detectGlobalAirportFromText,
   STANDARD_PRODUCTS,
   loadDb,
   saveDb,

@@ -3,7 +3,7 @@ const { promisify } = require('util');
 const fs = require('fs');
 const path = require('path');
 const { callGeminiJson } = require('./geminiClient');
-const { AIRPORT_METADATA, STANDARD_PRODUCTS } = require('../data/store');
+const { AIRPORT_METADATA, STANDARD_PRODUCTS, detectGlobalAirportFromText } = require('../data/store');
 
 const execFileAsync = promisify(execFile);
 
@@ -44,7 +44,7 @@ const OPERATOR_SUBHEADER_RE =
   /\b(?:AVOLTA|HUDSON\s+GROUP|DUFRY|HMS\s*HOST(?:\s+CONCESSIONS|\s+CORP)?|OTG\s+MANAGEMENT|PARADIES\s+TRAVEL|LAGARD[EÈ]RE\s+TRAVEL|DELAWARE\s+NORTH(?:\s+TRAVEL|\s+HOSPITALITY)?|SSP\s+AMERICA|AREAS\s+USA|OPERATED\s+BY)\b/i;
 
 const AIRPORT_LINE_RE =
-  /\b(?:INTL|INTERNATIONAL|AIRPORT|JFK|LAX|ORD|ATL|DEN|SFO|SEA|DFW)\b|O['’`]?HARE|HARTSFIELD/i;
+  /\b(?:INT['’]?L|INTERNATIONAL|AIRPORT|AEROPUERTO|A[EÉ]ROPORT|FLUGHAFEN|JFK|LAX|ORD|ATL|DEN|SFO|SEA|DFW)\b|O['’`]?HARE|HARTSFIELD|HEATHROW|PEARSON|GATWICK|SCHIPHOL|HANEDA|NARITA/i;
 
 const TERMINAL_GATE_RE =
   /\b(?:TERMINAL\s*[A-Z0-9]*|TERM\.?\s*[A-Z0-9]+|T[1-9]\b|CONCOURSE\s*[A-Z0-9]*|GATE\s+[A-Z]?\d+[A-Z]?|POST-?SEC(?:URITY)?|PRE-?SEC(?:URITY)?|PAST\s+SECURITY|BEFORE\s+SECURITY|BAGGAGE\s+CLAIM)\b/i;
@@ -289,16 +289,7 @@ function box2dToBbox(box2d) {
 }
 
 function detectAirportFromText(text = '', hintAirport = 'JFK') {
-  for (const entry of AIRPORT_ALIASES) {
-    if (entry.explicit.test(text)) return entry.code;
-  }
-  for (const entry of AIRPORT_ALIASES) {
-    if (entry.context.test(text)) return entry.code;
-  }
-  for (const code of Object.keys(AIRPORT_METADATA)) {
-    if (new RegExp(`\\b${code}\\b`, 'i').test(text)) return code;
-  }
-  return hintAirport || 'JFK';
+  return detectGlobalAirportFromText(text, hintAirport);
 }
 
 function extractDateAndTime(rawText = '') {
@@ -414,13 +405,18 @@ function buildReceiptAnnotations(extracted, ocrLines = []) {
   let airportIdx = -1;
   const locIndices = [];
   if (hasOcr) {
+    const detCode = String(extracted.airportCode || '').toUpperCase();
+    const detCity = (AIRPORT_METADATA[detCode]?.city || '').split(',')[0].trim();
+    const codeWordRe = /^[A-Z]{3}$/.test(detCode) ? new RegExp(`\\b${detCode}\\b`, 'i') : null;
     airportIdx = ocrLines.findIndex(
       (l, idx) =>
         !usedIndices.has(idx) &&
         idx <= 6 &&
         l.bbox &&
         (AIRPORT_LINE_RE.test(l.text) ||
-          AIRPORT_ALIASES.some((a) => a.code === extracted.airportCode && (a.explicit.test(l.text) || a.context.test(l.text)))) &&
+          (codeWordRe && codeWordRe.test(l.text)) ||
+          (detCity.length >= 4 && l.text.toUpperCase().includes(detCity.toUpperCase())) ||
+          AIRPORT_ALIASES.some((a) => a.code === detCode && (a.explicit.test(l.text) || a.context.test(l.text)))) &&
         !/THANK\s+YOU/i.test(l.text) &&
         !/\$\s*\d+\.\d{2}/.test(l.text)
     );
@@ -866,7 +862,7 @@ CRITICAL RULES:
 1. Extract ALL purchased items on the receipt into "lineItems" (never stop after one item). Fix thermal OCR unit typos like "200Z" -> "20OZ" or "160Z" -> "16OZ".
 2. Record "merchantName" AS-IS with the store/brand name on the top header (e.g. "HUDSON NEWS #412", "STARBUCKS #7140 (HMSHOST)", "TIMBERLINE STEAKS & GRILLE"). Do NOT put the parent operator subheader or terminal into merchantName.
 3. Separately infer "potentialChainAffiliation" (e.g. "HMSHost (Avolta)", "Hudson Group (Avolta)", "OTG", "Paradies Lagardère", "Delaware North", "SSP America", "Local Street Retailer", or "Unknown / Unconfirmed") and explain why in "affiliationReason".
-4. Detect "airportCode" accurately from IATA codes (JFK, LAX, ORD, ATL, DEN, SFO, SEA, DFW), airport names (O'Hare -> ORD, Hartsfield-Jackson -> ATL), or airport city/ZIPs.
+4. Detect "airportCode" accurately as any valid 3-letter IATA airport code worldwide (e.g. JFK, LAX, ORD, ATL, DEN, SFO, SEA, DFW, BOS, EWR, LGA, MIA, YYZ, YVR, MEX, CUN, LHR, CDG, HND, NRT, SYD) from printed IATA codes, airport names (O'Hare -> ORD, Hartsfield-Jackson -> ATL, Pearson -> YYZ, Heathrow -> LHR), or airport city/ZIPs.
 5. Record "terminalOrLocation" cleanly from the terminal/concourse/gate lines (e.g. "TERMINAL 6 — GATE 64A (POST-SECURITY)") — NEVER confuse "HMSHOST" or "TRAVEL" with street/location words!
 6. When an image is attached, also return 2D bounding boxes as [ymin, xmin, ymax, xmax] normalized 0..1000 for merchantBox, vendorBox, airportBox, locationBox, dateTimeBox, each lineItems[i].box_2d, taxBox, and totalBox (or null if absent).
 Return ONLY valid JSON matching this schema:
@@ -877,7 +873,7 @@ Return ONLY valid JSON matching this schema:
   "vendorBox": [number, number, number, number] | null,
   "affiliationConfidence": "high" | "medium" | "low" | "unknown",
   "affiliationReason": string,
-  "airportCode": "JFK" | "LAX" | "ORD" | "ATL" | "DEN" | "SFO" | "SEA" | "DFW",
+  "airportCode": string,
   "airportBox": [number, number, number, number] | null,
   "terminalOrLocation": string,
   "locationBox": [number, number, number, number] | null,
@@ -1251,6 +1247,7 @@ async function runAuditVisualizerAgent(receipts, analysis) {
   const visualizationPanel = {
     updatedAt: new Date().toISOString(),
     airportGapChart: analysis.byAirport.map((a) => ({
+      airportCode: a.airportCode,
       label: a.airportCode,
       region: a.region,
       avgAirportPrice: a.avgAirportPrice,

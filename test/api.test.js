@@ -227,3 +227,81 @@ test('POST /api/receipts supports anonymous & encrypted consent submissions and 
   assert.equal(patched.receipt.merchantName, 'Millbrae Market (Verified)');
 });
 
+test('Global world airports catalog covers 5,200+ airports ranked US -> North America -> Worldwide and supports international receipts', async () => {
+  const { WORLD_AIRPORTS_LIST, searchAirports } = require('../public/world-airports');
+
+  const bootRes = await fetch(`${baseUrl}/api/bootstrap`);
+  assert.equal(bootRes.status, 200);
+  const boot = await bootRes.json();
+
+  assert.ok(boot.metadata.totalWorldAirports > 5000, `Expected >5,000 world airports, got ${boot.metadata.totalWorldAirports}`);
+  assert.equal(WORLD_AIRPORTS_LIST.length, boot.metadata.totalWorldAirports);
+
+  const airports = boot.metadata.airports;
+  // Verify Tier 1 (US Major Hub) < Tier 2 (US Regional) < Tier 3 (North America) < Tier 4 (Worldwide)
+  assert.equal(airports.ATL.tier, 1);
+  assert.equal(airports.JFK.tier, 1);
+  assert.equal(airports.PWM.tier, 2); // Portland, ME (US Regional)
+  assert.equal(airports.YYZ.tier, 3); // Toronto Pearson (North America)
+  assert.equal(airports.MEX.tier, 3); // Mexico City (North America)
+  assert.equal(airports.CUN.tier, 3); // Cancun (North America)
+  assert.equal(airports.LHR.tier, 4); // London Heathrow (Worldwide)
+  assert.equal(airports.HND.tier, 4); // Tokyo Haneda (Worldwide)
+  assert.equal(airports.SYD.tier, 4); // Sydney (Worldwide)
+
+  assert.ok(airports.ATL.rank < airports.PWM.rank, 'US Major Hub must rank ahead of US Regional');
+  assert.ok(airports.PWM.rank < airports.YYZ.rank, 'US Regional must rank ahead of North America');
+  assert.ok(airports.YYZ.rank < airports.LHR.rank, 'North America must rank ahead of rest of World');
+
+  // Verify search preserves US -> North America -> World priority within match buckets
+  const londonHits = searchAirports('london');
+  assert.ok(londonHits.some((a) => a.code === 'LHR'));
+  const torontoHits = searchAirports('toronto');
+  assert.equal(torontoHits[0].code, 'YYZ');
+
+  // Verify Agent 1 auto-detects North American (YYZ) and European (LHR) receipts without TAX/SUB false positives
+  const yyzForm = new FormData();
+  yyzForm.append('track', 'airport');
+  yyzForm.append('hintAirport', 'JFK');
+  yyzForm.append(
+    'rawText',
+    'HUDSON NONSTOP\nTORONTO PEARSON INTL AIRPORT (YYZ)\nTERMINAL 1 GATE F62\nSMARTWATER 20OZ $5.99\nSUB TOTAL $5.99\nSALES TAX $0.78\nTOTAL $6.77'
+  );
+  const yyzInspect = await (await fetch(`${baseUrl}/api/agent1/inspect`, { method: 'POST', body: yyzForm })).json();
+  assert.equal(yyzInspect.extracted.airportCode, 'YYZ');
+
+  // Verify receipt without airport code but with SALES TAX / SUB TOTAL keeps hintAirport instead of matching TAX/SUB
+  const plainForm = new FormData();
+  plainForm.append('track', 'street');
+  plainForm.append('hintAirport', 'BOS');
+  plainForm.append('rawText', 'CORNER DELI & MARKET\n120 MAIN ST\nBOTTLED WATER 20OZ $1.99\nSUB TOTAL $1.99\nSALES TAX $0.12\nTOTAL $2.11');
+  const plainInspect = await (await fetch(`${baseUrl}/api/agent1/inspect`, { method: 'POST', body: plainForm })).json();
+  assert.equal(plainInspect.extracted.airportCode, 'BOS');
+
+  // Submit a global receipt (YYZ) and verify /api/admin/traffic includes YYZ without 5,000+ empty rows
+  const postRes = await fetch(`${baseUrl}/api/receipts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      track: 'airport',
+      airportCode: 'YYZ',
+      terminalOrLocation: 'Terminal 1, Gate F62 (Past Security)',
+      merchantName: 'Hudson Nonstop YYZ',
+      vendorAffiliation: 'Hudson Group (Avolta)',
+      lineItems: [{ rawName: 'SMARTWATER 20OZ', standardizedProductKey: 'water_20oz', quantity: 1, unitPrice: 5.99 }],
+      tax: 0.78,
+      total: 6.77,
+      isAnonymous: true,
+    }),
+  });
+  assert.equal(postRes.status, 201);
+  const postData = await postRes.json();
+  assert.equal(postData.receipt.airportCode, 'YYZ');
+  assert.equal(postData.receipt.region, 'North America (Canada)');
+
+  const traf = await (await fetch(`${baseUrl}/api/admin/traffic`)).json();
+  assert.ok(traf.promotionTargets.some((t) => t.airportCode === 'YYZ'));
+  assert.ok(traf.promotionTargets.length < 50, `Expected compact promotionTargets list, got ${traf.promotionTargets.length}`);
+});
+
+

@@ -4,7 +4,14 @@ const multer = require('multer');
 const path = require('path');
 const crypto = require('crypto');
 
-const { AIRPORT_METADATA, STANDARD_PRODUCTS, loadDb, saveDb } = require('./src/data/store');
+const {
+  AIRPORT_METADATA,
+  WORLD_AIRPORTS_LIST,
+  FEATURED_AIRPORT_CODES,
+  STANDARD_PRODUCTS,
+  loadDb,
+  saveDb,
+} = require('./src/data/store');
 const {
   getSpreadsheetId,
   isSheetsEnabled,
@@ -74,6 +81,8 @@ app.get('/api/bootstrap', async (req, res) => {
     res.json({
       metadata: {
         airports: AIRPORT_METADATA,
+        totalWorldAirports: WORLD_AIRPORTS_LIST.length,
+        featuredAirports: FEATURED_AIRPORT_CODES,
         products: STANDARD_PRODUCTS,
         vendors: VENDOR_AFFILIATIONS,
         geminiMode: isGeminiConfigured() ? 'gemini-live' : 'local-deterministic-fallback',
@@ -466,8 +475,10 @@ app.get('/api/admin/traffic', (req, res) => {
   const byDate = {};
   const byAirport = {};
 
-  for (const code of Object.keys(AIRPORT_METADATA)) {
-    byAirport[code] = { airportCode: code, city: AIRPORT_METADATA[code].city, airport: 0, street: 0 };
+  for (const code of FEATURED_AIRPORT_CODES) {
+    if (AIRPORT_METADATA[code]) {
+      byAirport[code] = { airportCode: code, city: AIRPORT_METADATA[code].city, airport: 0, street: 0 };
+    }
   }
 
   for (const r of db.receipts) {
@@ -479,9 +490,15 @@ app.get('/api/admin/traffic', (req, res) => {
     byDate[date].total += 1;
     if (r.hasEncryptedConsent) byDate[date].consentSignups += 1;
 
-    if (byAirport[r.airportCode]) {
-      byAirport[r.airportCode][r.track] += 1;
+    if (!byAirport[r.airportCode]) {
+      byAirport[r.airportCode] = {
+        airportCode: r.airportCode,
+        city: AIRPORT_METADATA[r.airportCode]?.city || r.airportCode,
+        airport: 0,
+        street: 0,
+      };
     }
+    byAirport[r.airportCode][r.track] += 1;
   }
 
   const dailyTraffic = Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
