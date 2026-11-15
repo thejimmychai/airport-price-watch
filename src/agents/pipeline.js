@@ -1,5 +1,11 @@
+const { execFile } = require('child_process');
+const { promisify } = require('util');
+const fs = require('fs');
+const path = require('path');
 const { callGeminiJson } = require('./geminiClient');
 const { AIRPORT_METADATA, STANDARD_PRODUCTS } = require('../data/store');
+
+const execFileAsync = promisify(execFile);
 
 const VENDOR_AFFILIATIONS = [
   'Hudson Group (Avolta)',
@@ -7,15 +13,71 @@ const VENDOR_AFFILIATIONS = [
   'Paradies Lagardère',
   'OTG',
   'Delaware North',
+  'SSP America',
   'Airport Independent',
   'Local Street Retailer',
+  'Unknown / Unconfirmed',
 ];
+
+const CHAIN_AFFILIATION_DIRECTORY = [
+  { pattern: /HUDSON|DUFRY|AVOLTA/i, chain: 'Hudson Group (Avolta)', confidence: 'high', reason: 'Store brand matches Hudson Group / Avolta airport news & travel retail.' },
+  { pattern: /HMS\s*HOST|HMSHOST/i, chain: 'HMSHost (Avolta)', confidence: 'high', reason: 'Receipt explicitly references HMSHost concession operations.' },
+  { pattern: /CIBO\s*EXPRESS|OTG/i, chain: 'OTG', confidence: 'high', reason: 'Cibo Express Gourmet Market is operated by OTG Management.' },
+  { pattern: /PARADIES|LAGARDERE/i, chain: 'Paradies Lagardère', confidence: 'high', reason: 'Store brand matches Paradies Lagardère travel essentials.' },
+  { pattern: /TIMBERLINE|DELAWARE\s*NORTH/i, chain: 'Delaware North', confidence: 'high', reason: 'Timberline Steaks & Grille / Delaware North Travel Hospitality.' },
+  { pattern: /STARBUCKS|CHILI'?S|BURGER\s*KING|PANDA\s*EXPRESS|PRET\s*A\s*MANGER/i, chain: 'HMSHost (Avolta)', confidence: 'medium', reason: 'National F&B chain inside U.S. airport terminals is frequently operated under an HMSHost (Avolta) or SSP America concession license—optional for volunteer to confirm.' },
+  { pattern: /CVS|WALGREENS|TARGET|KING\s*SOOPERS|BODEGA|PHARMACY|MARKET/i, chain: 'Local Street Retailer', confidence: 'medium', reason: 'Matches neighborhood street-market or pharmacy baseline.' },
+];
+
+function inferPotentialChainAffiliation({ merchantName = '', rawText = '', track = 'airport' }) {
+  const combined = `${merchantName}\n${rawText}`;
+  if (track === 'street') {
+    return {
+      potentialChainAffiliation: 'Local Street Retailer',
+      affiliationConfidence: 'high',
+      affiliationReason: 'Submitted under Local Neighborhood Street Market track.',
+    };
+  }
+  for (const entry of CHAIN_AFFILIATION_DIRECTORY) {
+    if (entry.pattern.test(combined)) {
+      return {
+        potentialChainAffiliation: entry.chain,
+        affiliationConfidence: entry.confidence,
+        affiliationReason: entry.reason,
+      };
+    }
+  }
+  return {
+    potentialChainAffiliation: 'Unknown / Unconfirmed',
+    affiliationConfidence: 'unknown',
+    affiliationReason: 'Parent concessionaire not printed on receipt. Leave as Unknown or select if you spotted a concessionaire sign.',
+  };
+}
+
+async function extractTextWithTesseract(imageBase64, imageMimeType) {
+  if (!imageBase64) return '';
+  const ext = imageMimeType && imageMimeType.includes('jpeg') ? 'jpg' : 'png';
+  const tmpPath = path.join('/tmp', `apw_ocr_${Date.now()}_${Math.random().toString(16).slice(2)}.${ext}`);
+  try {
+    fs.writeFileSync(tmpPath, Buffer.from(imageBase64, 'base64'));
+    const { stdout } = await execFileAsync('tesseract', [tmpPath, 'stdout', '--psm', '6'], {
+      timeout: 15000,
+    });
+    return stdout || '';
+  } catch (err) {
+    return '';
+  } finally {
+    if (fs.existsSync(tmpPath)) {
+      fs.unlinkSync(tmpPath);
+    }
+  }
+}
 
 /**
  * Deterministic receipt parser fallback when GEMINI_API_KEY is not set
  * or when testing locally without external API calls.
  */
-function deterministicReceiptParse({ rawText = '', track = 'airport', hintAirport = 'JFK' }) {
+function deterministicReceiptParse({ rawText = '', track = 'airport', hintAirport = 'JFK', ocrUsed = false }) {
   const lines = rawText
     .split(/\r?\n/)
     .map((l) => l.trim())
@@ -23,54 +85,81 @@ function deterministicReceiptParse({ rawText = '', track = 'airport', hintAirpor
 
   const upper = rawText.toUpperCase();
 
-  let merchantName = track === 'airport' ? 'Hudson News Airport Store' : 'Neighborhood Market';
-  let vendorAffiliation = track === 'airport' ? 'Hudson Group (Avolta)' : 'Local Street Retailer';
-
-  if (upper.includes('HUDSON')) {
-    merchantName = 'Hudson News / Hudson Nonstop';
-    vendorAffiliation = 'Hudson Group (Avolta)';
-  } else if (upper.includes('HMS') || upper.includes('STARBUCKS')) {
-    merchantName = upper.includes('STARBUCKS') ? 'Starbucks Coffee' : 'HMSHost Concessions';
-    vendorAffiliation = track === 'airport' ? 'HMSHost (Avolta)' : 'Local Street Retailer';
-  } else if (upper.includes('PARADIES')) {
-    merchantName = 'Paradies Lagardère Travel Mart';
-    vendorAffiliation = 'Paradies Lagardère';
-  } else if (upper.includes('CIBO') || upper.includes('OTG')) {
-    merchantName = 'Cibo Express Gourmet Market';
-    vendorAffiliation = 'OTG';
-  } else if (upper.includes('CVS') || upper.includes('WALGREENS') || upper.includes('TARGET') || upper.includes('BODEGA')) {
-    merchantName = lines[0] || 'Local Street Pharmacy / Market';
-    vendorAffiliation = 'Local Street Retailer';
-  } else if (lines.length > 0 && !/\$\d/.test(lines[0])) {
-    merchantName = lines[0].slice(0, 48);
+  // 1. Record store/brand name AS-IS from the receipt header (first meaningful non-price line)
+  let merchantName = track === 'airport' ? 'Airport Store' : 'Neighborhood Market';
+  for (const line of lines.slice(0, 4)) {
+    if (
+      !/^\s*(=|-)+\s*$/.test(line) &&
+      !/^(DATE|TIME|REG|TBL|SUBTOTAL|TAX|TOTAL)/i.test(line) &&
+      !/\$\s*\d+\.\d{2}/.test(line)
+    ) {
+      merchantName = line.slice(0, 64);
+      break;
+    }
   }
 
+  // 2. Infer optional potential chain affiliation separately
+  const affiliation = inferPotentialChainAffiliation({ merchantName, rawText, track });
+
+  // 3. Detect airport IATA code
   let detectedAirport = hintAirport;
   for (const code of Object.keys(AIRPORT_METADATA)) {
-    if (upper.includes(code)) {
+    if (new RegExp(`\\b${code}\\b`).test(upper)) {
       detectedAirport = code;
       break;
     }
   }
 
+  // 4. Detect terminal/gate or neighborhood address line
+  let terminalOrLocation =
+    track === 'airport'
+      ? 'Terminal Concourse — verify gate/post-security'
+      : `${AIRPORT_METADATA[detectedAirport]?.city || 'Nearby Metro'} — verify street/ZIP`;
+  const locLine = lines.find((l) =>
+    /TERMINAL|CONCOURSE|GATE|POST-SEC|AVE|ST\b|BLVD|RD\b/i.test(l)
+  );
+  if (locLine) {
+    const gateLine = lines.find((l) => /CONCOURSE|GATE|POST-SEC/i.test(l) && l !== locLine);
+    terminalOrLocation = gateLine ? `${locLine} — ${gateLine}` : locLine;
+  }
+
+  // 5. Extract purchase date and time if present
+  const dateMatch = rawText.match(/(\d{4}-\d{2}-\d{2})/);
+  const timeMatch = rawText.match(/\b(\d{2}:\d{2})\b/);
+  const purchaseDate = dateMatch ? dateMatch[1] : new Date().toISOString().slice(0, 10);
+  const purchaseTime = timeMatch ? timeMatch[1] : new Date().toTimeString().slice(0, 5);
+
+  // 6. Parse ALL line items (supports "$6.29", "$ 6.29", "6.29", leading qty "2x")
   const lineItems = [];
-  const priceRegex = /^(.*?)\s+\$?(\d+\.\d{2})\s*$/;
+  const priceRegex = /^(.*?)\s+\$?\s*(\d+\.\d{2})\s*[A-Z]?\s*$/;
 
   for (const line of lines) {
     const lowerLine = line.toLowerCase();
     if (
       lowerLine.includes('subtotal') ||
+      lowerLine.includes('sub-total') ||
       lowerLine.includes('total') ||
       lowerLine.includes('tax') ||
       lowerLine.includes('visa') ||
       lowerLine.includes('mastercard') ||
-      lowerLine.includes('change')
+      lowerLine.includes('amex') ||
+      lowerLine.includes('payment') ||
+      lowerLine.includes('change') ||
+      lowerLine.includes('approved') ||
+      lowerLine.includes('auth code')
     ) {
       continue;
     }
     const match = line.match(priceRegex);
     if (match) {
-      const rawName = match[1].replace(/^\d+x?\s+/i, '').trim();
+      let rawName = match[1].trim();
+      let quantity = 1;
+      const qtyMatch = rawName.match(/^(\d+)\s*[xX@]\s+(.+)$/);
+      if (qtyMatch) {
+        quantity = parseInt(qtyMatch[1], 10) || 1;
+        rawName = qtyMatch[2].trim();
+      }
+      if (!rawName || /^\d+$/.test(rawName)) continue;
       const unitPrice = parseFloat(match[2]);
       const { key, category, unitSize } = classifyItem(rawName);
       lineItems.push({
@@ -78,52 +167,51 @@ function deterministicReceiptParse({ rawText = '', track = 'airport', hintAirpor
         standardizedProductKey: key,
         category,
         unitSize,
-        quantity: 1,
+        quantity,
         unitPrice,
-        confidence: 0.89,
+        confidence: ocrUsed ? 0.91 : 0.94,
       });
     }
   }
 
   if (lineItems.length === 0) {
-    // Provide helpful editable starter slot if image-only without OCR text in offline mode
     lineItems.push({
-      rawName: track === 'airport' ? 'DASANI WATER 20OZ' : 'BOTTLED WATER 20OZ',
+      rawName: track === 'airport' ? 'BOTTLED WATER 20OZ' : 'BOTTLED WATER 20OZ',
       standardizedProductKey: 'water_20oz',
       category: 'Bottled Water & Beverages',
       unitSize: '20 oz',
       quantity: 1,
       unitPrice: track === 'airport' ? 5.99 : 2.19,
-      confidence: 0.72,
+      confidence: 0.65,
     });
   }
 
   const subtotal = lineItems.reduce((acc, item) => acc + item.unitPrice * item.quantity, 0);
-  const taxMatch = rawText.match(/tax[:\s]+\$?(\d+\.\d{2})/i);
+  const taxMatch = rawText.match(/(?:sales\s+)?tax[:\s]+\$?\s*(\d+\.\d{2})/i);
   const tax = taxMatch ? parseFloat(taxMatch[1]) : Number((subtotal * 0.08875).toFixed(2));
-  const total = Number((subtotal + tax).toFixed(2));
+  const totalMatch = rawText.match(/(?:^|\n)\s*total[:\s]+\$?\s*(\d+\.\d{2})/im);
+  const total = totalMatch ? parseFloat(totalMatch[1]) : Number((subtotal + tax).toFixed(2));
 
   return {
     merchantName,
-    vendorAffiliation,
+    vendorAffiliation: affiliation.potentialChainAffiliation,
+    potentialChainAffiliation: affiliation.potentialChainAffiliation,
+    affiliationConfidence: affiliation.affiliationConfidence,
+    affiliationReason: affiliation.affiliationReason,
     airportCode: detectedAirport,
-    terminalOrLocation:
-      track === 'airport'
-        ? 'Terminal 4 (Post-Security) — verify gate/concourse'
-        : `${AIRPORT_METADATA[detectedAirport]?.city || 'Nearby Metro'} — verify street/ZIP`,
-    purchaseDate: new Date().toISOString().slice(0, 10),
-    purchaseTime: new Date().toTimeString().slice(0, 5),
+    terminalOrLocation,
+    purchaseDate,
+    purchaseTime,
     lineItems,
     tax,
     total,
-    aiNotes:
-      'Pre-filled by Agent 1 (Local Standardizer). Please verify vendor affiliation, terminal/neighborhood tag, and unit prices before confirming.',
+    aiNotes: `Extracted ${lineItems.length} item(s)${ocrUsed ? ' via receipt OCR' : ''}. Store brand recorded as "${merchantName}". Potential chain affiliation ("${affiliation.potentialChainAffiliation}") is optional—confirm or change if known.`,
   };
 }
 
 function classifyItem(rawName) {
   const u = rawName.toUpperCase();
-  if (u.includes('WATER') || u.includes('DASANI') || u.includes('SMARTWATER') || u.includes('AQUAFINA') || u.includes('EVIAN')) {
+  if (u.includes('WATER') || u.includes('DASANI') || u.includes('SMARTWATER') || u.includes('AQUAFINA') || u.includes('EVIAN') || u.includes('ETHOS') || u.includes('PELLEGRINO')) {
     return { key: 'water_20oz', category: 'Bottled Water & Beverages', unitSize: '20 oz' };
   }
   if (u.includes('LATTE') || u.includes('COFFEE') || u.includes('ESPRESSO') || u.includes('AMERICANO') || u.includes('TEA')) {
@@ -135,16 +223,16 @@ function classifyItem(rawName) {
   if (u.includes('SALAD') || u.includes('BOWL')) {
     return { key: 'salad_bowl', category: 'Grab-and-Go Food', unitSize: '1 bowl' };
   }
-  if (u.includes('BEER') || u.includes('IPA') || u.includes('ALE') || u.includes('LAGER') || u.includes('WINE')) {
+  if (u.includes('BEER') || u.includes('IPA') || u.includes('ALE') || u.includes('LAGER') || u.includes('WINE') || u.includes('DRAFT')) {
     return { key: 'beer_16oz_craft', category: 'Alcohol', unitSize: '16 oz' };
   }
-  if (u.includes('CHIPS') || u.includes('LAYS') || u.includes('PRETZEL') || u.includes('TRAIL') || u.includes('CANDY') || u.includes('SNICKERS')) {
+  if (u.includes('CHIPS') || u.includes('LAYS') || u.includes('PRETZEL') || u.includes('TRAIL') || u.includes('CANDY') || u.includes('SNICKERS') || u.includes('BAR')) {
     return { key: 'chips_snack_bag', category: 'Snacks & Candy', unitSize: '2.5 oz' };
   }
   if (u.includes('ADVIL') || u.includes('TYLENOL') || u.includes('IBUPROFEN') || u.includes('PAIN')) {
     return { key: 'pain_reliever_travel', category: 'Travel Essentials', unitSize: '10 ct' };
   }
-  if (u.includes('EARBUD') || u.includes('HEADPHONE') || u.includes('CHARGER') || u.includes('CABLE')) {
+  if (u.includes('EARBUD') || u.includes('HEADPHONE') || u.includes('CHARGER') || u.includes('CABLE') || u.includes('USB')) {
     return { key: 'earbuds_wired', category: 'Travel Essentials', unitSize: '1 unit' };
   }
   return { key: 'chips_snack_bag', category: 'Snacks & Candy', unitSize: '1 unit' };
@@ -154,18 +242,24 @@ function classifyItem(rawName) {
  * AGENT 1: Intake & Standardization Agent
  * Inspects receipt image/text and pre-fills standardized collection form with editable slots.
  */
-async function runIntakeInspectorAgent({ rawText, imageBase64, imageMimeType, track = 'airport', hintAirport = 'JFK' }) {
+async function runIntakeInspectorAgent({ rawText = '', imageBase64, imageMimeType, track = 'airport', hintAirport = 'JFK' }) {
   const startedAt = new Date().toISOString();
   const productKeysList = Object.entries(STANDARD_PRODUCTS)
     .map(([k, v]) => `${k} (${v.label}, category: ${v.category})`)
     .join('; ');
 
   const systemPrompt = `You are Agent 1 (Intake & Standardization Agent) for Airport Price Watch, a civic transparency project inspired by More Perfect Union's airport price-gouging investigation.
-Your job is to inspect an incoming receipt (image and/or raw text) and extract standardized fields for volunteer review.
+Your job is to inspect an incoming receipt (image and/or raw text) and extract EVERY SINGLE purchased line item and standardized fields for volunteer review.
+IMPORTANT:
+1. Extract ALL purchased items on the receipt into "lineItems" (do not stop after one item).
+2. Record "merchantName" AS-IS with the store/brand name printed on the receipt (e.g. "HUDSON NEWS #412", "STARBUCKS #7140", "TIMBERLINE STEAKS & GRILLE").
+3. Separately look up / infer "potentialChainAffiliation" (the parent airport concessionaire or chain, if applicable, e.g. "HMSHost (Avolta)", "Hudson Group (Avolta)", "OTG", "Paradies Lagardère", "Delaware North", "SSP America", "Local Street Retailer", or "Unknown / Unconfirmed") and explain why in "affiliationReason" so the volunteer can optionally confirm or skip it.
 Return ONLY valid JSON matching this schema:
 {
-  "merchantName": string,
-  "vendorAffiliation": one of ${JSON.stringify(VENDOR_AFFILIATIONS)},
+  "merchantName": string (as printed on receipt),
+  "potentialChainAffiliation": one of ${JSON.stringify(VENDOR_AFFILIATIONS)},
+  "affiliationConfidence": "high" | "medium" | "low" | "unknown",
+  "affiliationReason": string,
   "airportCode": 3-letter IATA code (e.g. JFK, LAX, ORD, ATL, DEN, SFO, SEA, DFW),
   "terminalOrLocation": string (e.g. "Terminal 4, Gate B22 (Post-Security)" for airport or "Neighborhood, City, ZIP" for street),
   "purchaseDate": "YYYY-MM-DD",
@@ -183,14 +277,14 @@ Return ONLY valid JSON matching this schema:
   ],
   "tax": number,
   "total": number,
-  "aiNotes": string (brief note highlighting any uncertain fields the volunteer should double-check)
+  "aiNotes": string
 }`;
 
   const userPrompt = `Submission track: ${track === 'airport' ? 'Airport Traveler Purchase' : 'Local Neighborhood Street Market Purchase'}.
 Hint airport: ${hintAirport}.
 Standardized product keys: ${productKeysList}.
 Raw receipt text (if provided):
-${rawText || '(See attached receipt image or use standard template if illegible)'}`;
+${rawText || '(See attached receipt image — extract every purchased line item)'}`;
 
   const geminiResult = await callGeminiJson({
     systemPrompt,
@@ -200,20 +294,31 @@ ${rawText || '(See attached receipt image or use standard template if illegible)
   });
 
   if (geminiResult.ok && geminiResult.data && Array.isArray(geminiResult.data.lineItems)) {
+    const ex = geminiResult.data;
+    if (!ex.vendorAffiliation) {
+      ex.vendorAffiliation = ex.potentialChainAffiliation || 'Unknown / Unconfirmed';
+    }
     return {
       agent: 'Agent 1: Intake & Standardization',
       mode: geminiResult.mode,
       model: geminiResult.model,
       startedAt,
       completedAt: new Date().toISOString(),
-      extracted: geminiResult.data,
+      extracted: ex,
     };
   }
 
-  const fallback = deterministicReceiptParse({ rawText, track, hintAirport });
+  let effectiveText = rawText || '';
+  let ocrUsed = false;
+  if (!effectiveText.trim() && imageBase64) {
+    effectiveText = await extractTextWithTesseract(imageBase64, imageMimeType);
+    ocrUsed = Boolean(effectiveText.trim());
+  }
+
+  const fallback = deterministicReceiptParse({ rawText: effectiveText, track, hintAirport, ocrUsed });
   return {
     agent: 'Agent 1: Intake & Standardization',
-    mode: 'local-deterministic-fallback',
+    mode: ocrUsed ? 'local-tesseract-ocr' : 'local-deterministic-fallback',
     reason: geminiResult.reason,
     startedAt,
     completedAt: new Date().toISOString(),

@@ -431,7 +431,13 @@ $('btn-run-agent1').addEventListener('click', async () => {
 
     const ex = data.extracted;
     $('std-merchant').value = ex.merchantName || '';
-    if (ex.vendorAffiliation) $('std-vendor').value = ex.vendorAffiliation;
+    const suggestedChain = ex.potentialChainAffiliation || ex.vendorAffiliation || 'Unknown / Unconfirmed';
+    $('std-vendor').value = suggestedChain;
+    const affBox = $('affiliation-hint-box');
+    if (affBox) {
+      affBox.classList.remove('hidden');
+      affBox.innerHTML = `<strong>Optional Chain Lookup (${escapeHtml(ex.affiliationConfidence || 'medium')}):</strong> Suggested parent chain: <strong>${escapeHtml(suggestedChain)}</strong>. ${escapeHtml(ex.affiliationReason || 'Confirm if you recognize it, or leave as Unknown / Unconfirmed.')}`;
+    }
     if (ex.airportCode && state.metadata.airports[ex.airportCode]) $('std-airport').value = ex.airportCode;
     $('std-location').value = ex.terminalOrLocation || '';
     if (ex.purchaseDate) $('std-date').value = ex.purchaseDate;
@@ -441,7 +447,7 @@ $('btn-run-agent1').addEventListener('click', async () => {
 
     $('agent1-meta').textContent = `Last intake: ${data.mode} (${ex.lineItems?.length || 0} items)`;
     statusEl.classList.remove('hidden');
-    statusEl.innerHTML = `<strong>Agent 1 (${data.mode}):</strong> ${escapeHtml(ex.aiNotes || 'Form pre-filled.')}<br><small>${escapeHtml(data.privacyCheck.message)}</small>`;
+    statusEl.innerHTML = `<strong>Agent 1 (${data.mode}):</strong> Extracted <strong>${ex.lineItems?.length || 0} item(s)</strong>. ${escapeHtml(ex.aiNotes || '')}<br><small>${escapeHtml(data.privacyCheck.message)}</small>`;
   } catch (err) {
     statusEl.classList.remove('hidden');
     statusEl.textContent = 'Error: ' + err.message;

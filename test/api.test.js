@@ -68,13 +68,13 @@ test('GET /api/health and /api/bootstrap return initialized 3-agent state', asyn
   assert.ok(boot.latestAuditReport.visualizationPanel.airportGapChart.length > 0);
 });
 
-test('POST /api/agent1/inspect pre-fills standardized receipt fields', async () => {
+test('POST /api/agent1/inspect extracts all items, keeps store brand as-is, and suggests optional chain affiliation', async () => {
   const formData = new FormData();
   formData.append('track', 'airport');
-  formData.append('hintAirport', 'LAX');
+  formData.append('hintAirport', 'DEN');
   formData.append(
     'rawText',
-    'HUDSON NONSTOP LAX T6\nSMARTWATER 20OZ $6.49\nLAYS CHIPS $4.29\nTAX $0.97'
+    'TIMBERLINE STEAKS & GRILLE\nDENVER INTL AIRPORT (DEN)\nCONCOURSE C CENTER (POST-SEC)\nCO CRAFT IPA DRAFT 16OZ   $ 15.50\nBISTRO TURKEY SANDWICH   $ 15.95\nBOTTLED WATER 20OZ   $ 4.99\nSALES TAX   $ 3.21\nTOTAL   $ 39.65'
   );
 
   const res = await fetch(`${baseUrl}/api/agent1/inspect`, {
@@ -83,9 +83,12 @@ test('POST /api/agent1/inspect pre-fills standardized receipt fields', async () 
   });
   assert.equal(res.status, 200);
   const data = await res.json();
-  assert.equal(data.extracted.airportCode, 'LAX');
-  assert.equal(data.extracted.vendorAffiliation, 'Hudson Group (Avolta)');
-  assert.equal(data.extracted.lineItems.length, 2);
+  assert.equal(data.extracted.airportCode, 'DEN');
+  assert.equal(data.extracted.merchantName, 'TIMBERLINE STEAKS & GRILLE');
+  assert.equal(data.extracted.potentialChainAffiliation, 'Delaware North');
+  assert.equal(data.extracted.lineItems.length, 3);
+  assert.equal(data.extracted.tax, 3.21);
+  assert.equal(data.extracted.total, 39.65);
 });
 
 test('POST /api/receipts supports anonymous & encrypted consent submissions and updates Agent 2 + 3', async () => {

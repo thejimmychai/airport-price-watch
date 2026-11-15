@@ -164,12 +164,12 @@
             <button type="button" class="btn-outline" style="width:auto; padding:4px 10px;" id="m-back-1">&larr; Back</button>
           </div>
           <div class="fg">
-            <label for="m-merchant">Merchant Name</label>
+            <label for="m-merchant">Store / Brand Name (As Printed on Receipt) *</label>
             <input type="text" id="m-merchant" required />
           </div>
           <div class="row-2">
             <div class="fg">
-              <label for="m-vendor">Vendor Affiliation</label>
+              <label for="m-vendor">Potential Chain Affiliation (Optional)</label>
               <select id="m-vendor"></select>
             </div>
             <div class="fg">
@@ -177,13 +177,14 @@
               <select id="m-std-airport"></select>
             </div>
           </div>
+          <div id="m-aff-hint" class="privacy-box hidden" style="background:var(--navy-soft); border-color:#c9d8eb; color:var(--navy); margin:0 0 12px;"></div>
           <div class="fg">
             <label for="m-location">Terminal / Neighborhood</label>
             <input type="text" id="m-location" required />
           </div>
 
           <div style="display:flex; justify-content:space-between; align-items:center; margin:8px 0;">
-            <strong style="font-size:13.5px;">Line Items (Tap to Fix Mistakes)</strong>
+            <strong style="font-size:13.5px;">Line Items (<span id="m-item-count">0</span> detected &mdash; Tap to Fix)</strong>
             <button type="button" class="btn-outline" style="width:auto; padding:4px 10px;" id="m-add-item">+ Item</button>
           </div>
           <div id="m-items-list"></div>
@@ -277,6 +278,7 @@
     function renderItems(items) {
       const prodOpts = Object.entries(meta.products).map(([k, p]) => `<option value="${k}">${p.label}</option>`).join('');
       $('m-items-list').innerHTML = '';
+      $('m-item-count').textContent = items.length;
       items.forEach((item) => {
         const div = document.createElement('div');
         div.className = 'item-box';
@@ -307,8 +309,8 @@
 
     $('m-load-sample').addEventListener('click', () => {
       $('m-text').value = track === 'airport'
-        ? 'HUDSON NEWS JFK T4\nSMARTWATER 20OZ $6.29\nTURKEY CLUB $16.99\nTAX $2.07'
-        : 'QUEENS BODEGA\nSMARTWATER 20OZ $2.00\nTURKEY CLUB $8.99\nTAX $0.97';
+        ? 'HUDSON NEWS #412\nJFK TERMINAL 4\nSMARTWATER 20OZ $6.29\nADVIL TRAVEL PK 10CT $9.99\nLAYS CLASSIC 2.6OZ $4.79\nTAX $1.87'
+        : 'QUEENS CORNER BODEGA\nSMARTWATER 20OZ $2.00\nTURKEY CLUB $8.99\nLAYS CLASSIC 2.6OZ $2.29\nTAX $1.18';
     });
 
     $('m-add-item').addEventListener('click', () => {
@@ -335,7 +337,10 @@
 
       const ex = data.extracted;
       $('m-merchant').value = ex.merchantName || '';
-      if (ex.vendorAffiliation) $('m-vendor').value = ex.vendorAffiliation;
+      const chain = ex.potentialChainAffiliation || ex.vendorAffiliation || 'Unknown / Unconfirmed';
+      $('m-vendor').value = chain;
+      $('m-aff-hint').classList.remove('hidden');
+      $('m-aff-hint').innerHTML = `<strong>Optional Chain Lookup (${ex.affiliationConfidence || 'medium'}):</strong> Potential parent chain: <strong>${chain}</strong>. ${ex.affiliationReason || 'Confirm if known or leave as Unknown.'}`;
       if (ex.airportCode) $('m-std-airport').value = ex.airportCode;
       $('m-location').value = ex.terminalOrLocation || '';
       $('m-tax').value = Number(ex.tax || 0).toFixed(2);
