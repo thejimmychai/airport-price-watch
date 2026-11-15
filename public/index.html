@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Airport Price Watch — Crowdsourced Airport vs. Street Market Transparency</title>
-  <meta name="description" content="Crowdsourced airport vs. local street market receipt monitoring powered by Google AI agents, continuing More Perfect Union's airport price-gouging investigation." />
+  <title>Airport Price Watch — Real Receipts Comparing Airport &amp; Neighborhood Prices</title>
+  <meta name="description" content="Travelers and local residents share receipts to compare airport prices against nearby neighborhood stores and track fair-pricing promises." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,500;0,6..72,600;0,6..72,700;1,6..72,500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -13,392 +13,476 @@
 <body>
   <header class="site-header">
     <div class="container header-inner">
-      <div class="brand">
-        <div class="brand-mark" aria-hidden="true">APW</div>
+      <a href="#compare" class="brand" id="brand-home-link">
+        <div class="brand-mark" aria-hidden="true">A</div>
         <div>
           <div class="brand-title">Airport Price Watch</div>
-          <div class="brand-subtitle">Public Market Transparency &amp; Street-Pricing Audit</div>
+          <div class="brand-subtitle">Travelers &amp; Neighbors Tracking Fair Prices</div>
         </div>
-      </div>
+      </a>
 
       <nav class="main-nav" aria-label="Primary navigation">
-        <button class="nav-btn active" data-tab="monitor" id="nav-monitor">Price Monitor</button>
-        <button class="nav-btn" data-tab="submit" id="nav-submit">Submit Receipt</button>
-        <button class="nav-btn" data-tab="agents" id="nav-agents">3-Agent Audit &amp; Report</button>
-        <button class="nav-btn" data-tab="database" id="nav-database">Database</button>
+        <button class="nav-btn active" data-tab="monitor" id="nav-monitor">Compare Prices</button>
+        <button class="nav-btn" data-tab="submit" id="nav-submit">Add a Price</button>
+        <button class="nav-btn" data-tab="open-data" id="nav-open-data">Open Data &amp; How We Check</button>
       </nav>
 
-      <div class="header-status">
-        <span class="status-chip" id="gemini-mode-badge" title="Google AI API status">Checking AI...</span>
-        <a href="/api/export/csv" class="btn btn-outline btn-sm" id="btn-export-csv">Export CSV</a>
+      <div class="header-actions">
+        <a href="/submit.html" class="btn btn-outline btn-sm" id="btn-mobile-link">Phone View</a>
+        <a href="/api/export/csv" class="btn btn-outline btn-sm" id="btn-export-csv">Download CSV</a>
       </div>
     </div>
   </header>
 
   <main class="container main-content">
-    <!-- TAB 1: LIVE PRICE MONITOR -->
+    <!-- TAB 1: COMPARE PRICES -->
     <section id="tab-monitor" class="tab-panel active">
-      <div class="editorial-hero">
-        <div class="hero-copy">
-          <p class="eyebrow">Public Interest Market Watch &bull; Continuing More Perfect Union&rsquo;s Investigation</p>
-          <h1>Exposing the Airport-to-Street Price Gap in Real Time</h1>
+      <div class="story-hero">
+        <div class="hero-main">
+          <p class="kicker">Community Price Transparency &bull; Inspired by More Perfect Union</p>
+          <h1>Are Airports Keeping Their Fair-Pricing Promises?</h1>
           <p class="hero-lead">
-            Many U.S. airports require concessionaires to honor &ldquo;street pricing&rdquo; policies&mdash;capping markups at 10% to 15% above nearby neighborhood rates. Travelers and local residents crowdsource receipts here so a 3-agent Google AI pipeline can standardize, benchmark, and audit compliance.
+            Most major U.S. airports promise that food, water, and travel basics won&rsquo;t cost more than <strong>10% to 15% above</strong> nearby neighborhood stores. Travelers inside terminals and neighbors living nearby share receipts here to show what people actually pay.
           </p>
-          <div class="hero-actions">
-            <button class="btn btn-primary" id="hero-submit-airport">Submit Airport Receipt</button>
-            <button class="btn btn-secondary" id="hero-submit-street">Submit Local Street Receipt</button>
-            <a href="https://youtu.be/35ypZJ3Zc0Y?si=YJ5smcUJuvaspPpH" target="_blank" rel="noopener noreferrer" class="btn btn-link">Watch Pilot Investigation &rarr;</a>
+          <div class="hero-cta-row">
+            <button class="btn btn-primary" id="hero-submit-airport">I Bought Something at an Airport</button>
+            <button class="btn btn-warm" id="hero-submit-street">I Bought Something Nearby in Town</button>
+            <a href="https://youtu.be/35ypZJ3Zc0Y?si=YJ5smcUJuvaspPpH" target="_blank" rel="noopener noreferrer" class="btn btn-ghost">Watch the Investigation &rarr;</a>
           </div>
         </div>
 
-        <aside class="mission-card">
-          <div class="mission-card-label">Data Security &amp; Architecture</div>
-          <ul class="mission-list">
-            <li><strong>Zero-PII Default:</strong> Receipt photos strip EXIF/GPS metadata before AI inspection.</li>
-            <li><strong>Encrypted Policy Consent:</strong> Optional volunteer demographics use AES-256-GCM envelope encryption (Cloud KMS ready).</li>
-            <li><strong>Google Cloud Hosted:</strong> Designed for Cloud Run, Cloud Storage, Firestore &amp; Gemini API.</li>
-          </ul>
+        <aside class="bounty-aside" aria-label="Where your receipt helps most">
+          <div>
+            <h2>Where Your Receipt Helps Most</h2>
+            <p class="bounty-sub">Tap any city below to add a receipt where our community needs fresh comparisons:</p>
+            <div class="bounty-list" id="bounty-list"></div>
+          </div>
+          <div style="font-size:12.5px; color:var(--ink-muted);">
+            100% private by default &mdash; photo location data is automatically removed.
+          </div>
         </aside>
       </div>
 
-      <!-- KPI Strip -->
-      <div class="kpi-grid" id="kpi-grid">
-        <article class="kpi-card">
-          <div class="kpi-label">Avg. Airport Markup vs. Street</div>
-          <div class="kpi-value text-alert" id="kpi-avg-markup">--%</div>
-          <div class="kpi-sub">Across <span id="kpi-compared-items">0</span> standardized items</div>
+      <!-- Plain-Language Summary Stats -->
+      <div class="headline-stats" id="kpi-grid">
+        <article class="stat-card">
+          <div class="stat-title">Typical Airport Overcharge</div>
+          <div class="stat-num text-overcharge" id="kpi-avg-markup">--%</div>
+          <div class="stat-explain">Higher than nearby stores across <span id="kpi-compared-items">0</span> items</div>
         </article>
-        <article class="kpi-card">
-          <div class="kpi-label">Policy Cap Violation Rate</div>
-          <div class="kpi-value text-alert" id="kpi-violation-rate">--%</div>
-          <div class="kpi-sub">Items exceeding 10&ndash;15% street-pricing cap</div>
+        <article class="stat-card">
+          <div class="stat-title">Items Above Fair-Price Rule</div>
+          <div class="stat-num text-overcharge" id="kpi-violation-rate">--%</div>
+          <div class="stat-explain">Broke the airport&rsquo;s 10&ndash;15% markup limit</div>
         </article>
-        <article class="kpi-card">
-          <div class="kpi-label">Crowdsourced Receipts</div>
-          <div class="kpi-value" id="kpi-total-receipts">--</div>
-          <div class="kpi-sub"><span id="kpi-airport-count">0</span> airport &bull; <span id="kpi-street-count">0</span> street baseline</div>
+        <article class="stat-card">
+          <div class="stat-title">Receipts Shared by Volunteers</div>
+          <div class="stat-num text-primary" id="kpi-total-receipts">--</div>
+          <div class="stat-explain"><span id="kpi-airport-count">0</span> at airports &bull; <span id="kpi-street-count">0</span> in local stores</div>
         </article>
-        <article class="kpi-card">
-          <div class="kpi-label">Agent 3 Integrity Score</div>
-          <div class="kpi-value text-ok" id="kpi-integrity-score">--/100</div>
-          <div class="kpi-sub">Last audited <span id="kpi-last-updated">--</span></div>
+        <article class="stat-card">
+          <div class="stat-title">Data Confidence Score</div>
+          <div class="stat-num text-fair" id="kpi-integrity-score">--/100</div>
+          <div class="stat-explain">Checked <span id="kpi-last-updated">--</span></div>
         </article>
       </div>
 
-      <!-- Visualization Panel updated by Agent 3 -->
-      <div class="section-header">
-        <div>
-          <h2>Live Visualization Panel</h2>
-          <p class="section-sub">Automatically audited and updated by <strong>Agent 3 (Audit &amp; Visualization Updater)</strong> whenever new receipts arrive.</p>
+      <!-- Everyday Item Dollar Spotlight -->
+      <section class="spotlight-section" aria-label="Side-by-side everyday item comparison">
+        <div class="section-head">
+          <div>
+            <h2>Real Dollars: What Everyday Items Actually Cost</h2>
+            <p>Pick an everyday item to compare neighborhood store prices, the airport&rsquo;s promised fair limit, and actual terminal prices.</p>
+          </div>
         </div>
-        <button class="btn btn-outline btn-sm" id="btn-refresh-viz">Refresh AI Audit</button>
+
+        <div class="item-pills" id="spotlight-pills" role="tablist"></div>
+
+        <div class="basket-comparison-grid" id="spotlight-cards"></div>
+      </section>
+
+      <!-- Visual Comparisons -->
+      <div class="charts-grid">
+        <article class="panel">
+          <div class="panel-header">
+            <h3>Which Airports Mark Up Prices the Most?</h3>
+            <span class="subtle-tag">Dark line = Airport&rsquo;s 10&ndash;15% rule</span>
+          </div>
+          <div id="chart-airport-gap" class="bar-list"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <h3>Which Store Operators Charge the Highest Markups?</h3>
+            <span class="subtle-tag">Parent Companies</span>
+          </div>
+          <div id="chart-vendor-markup" class="bar-list"></div>
+        </article>
       </div>
 
-      <div class="viz-grid">
+      <div class="charts-grid">
         <article class="panel">
           <div class="panel-header">
-            <h3>Airport Markup % vs. Policy Cap</h3>
-            <span class="panel-tag">By Airport Code</span>
+            <h3>Average Price by Item Type</h3>
+            <span class="subtle-tag">Airport vs. Local Store</span>
           </div>
-          <div id="chart-airport-gap" class="chart-container"></div>
+          <div id="chart-category-gap" class="bar-list"></div>
         </article>
 
         <article class="panel">
           <div class="panel-header">
-            <h3>Markup % by Concessionaire Affiliation</h3>
-            <span class="panel-tag">Vendor Concentration</span>
+            <h3>City-by-City Receipt Coverage</h3>
+            <span class="subtle-tag">Airport + Local Store Pairs</span>
           </div>
-          <div id="chart-vendor-markup" class="chart-container"></div>
-        </article>
-
-        <article class="panel">
-          <div class="panel-header">
-            <h3>Airport vs. Street Price by Category</h3>
-            <span class="panel-tag">Average USD</span>
-          </div>
-          <div id="chart-category-gap" class="chart-container"></div>
-        </article>
-
-        <article class="panel">
-          <div class="panel-header">
-            <h3>Street-Baseline Pairing Coverage</h3>
-            <span class="panel-tag">Agent 3 Audit</span>
-          </div>
-          <div id="chart-pairing-coverage" class="chart-container"></div>
+          <div id="chart-pairing-coverage"></div>
         </article>
       </div>
     </section>
 
-    <!-- TAB 2: SUBMIT RECEIPT -->
+    <!-- TAB 2: ADD A PRICE (VOLUNTEER INTAKE) -->
     <section id="tab-submit" class="tab-panel">
-      <div class="section-header">
+      <div class="section-head">
         <div>
-          <h2>Submit a Receipt</h2>
-          <p class="section-sub">Upload a receipt photo or paste receipt text. <strong>Agent 1</strong> strips metadata, extracts line items, and pre-fills the standardized form for your review.</p>
+          <h2>Share a Price With the Community</h2>
+          <p>Snap a receipt so our reader fills out the form for you&mdash;or log a single shelf price in 10 seconds.</p>
         </div>
       </div>
 
-      <div class="submit-layout">
-        <!-- Left Column: Track, Privacy & Receipt Intake -->
-        <div class="submit-left">
+      <!-- Mode Switcher: Full Receipt vs 10-Second Quick Spot -->
+      <div class="intake-mode-bar" role="tablist" aria-label="How would you like to contribute?">
+        <button type="button" class="mode-pill active" id="mode-full-btn">Scan or Paste a Receipt</button>
+        <button type="button" class="mode-pill" id="mode-quick-btn">10-Second Quick Price Spot (No Receipt Needed)</button>
+      </div>
+
+      <!-- QUICK SPOTTER PANEL -->
+      <div id="quick-spot-container" class="panel hidden" style="max-width:740px; margin-bottom:24px;">
+        <div class="panel-header">
+          <h3>10-Second Quick Price Spot</h3>
+          <span class="subtle-tag">Tapped &ldquo;No Receipt&rdquo; at a kiosk? Log 1 item fast</span>
+        </div>
+        <form id="quick-spot-form">
+          <div class="track-cards" style="margin-bottom:16px;">
+            <button type="button" class="track-card active" id="qs-track-airport">
+              <strong>At an Airport</strong>
+              <span>Past security or terminal shop</span>
+            </button>
+            <button type="button" class="track-card" id="qs-track-street">
+              <strong>Nearby Local Store</strong>
+              <span>Corner store, grocery, or cafe</span>
+            </button>
+          </div>
+
+          <label style="display:block; font-size:13px; font-weight:600; color:var(--ink-secondary); margin-bottom:8px;">1. Tap What You Bought or Saw</label>
+          <div class="spotter-grid" id="qs-item-grid"></div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="qs-airport">2. Which Airport City?</label>
+              <select id="qs-airport"></select>
+            </div>
+            <div class="form-group">
+              <label for="qs-price">3. Price on Tag or Screen ($ USD) *</label>
+              <input type="number" step="0.01" min="0.25" id="qs-price" placeholder="e.g. 6.49" required />
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="qs-store">Store Name (As Seen on Sign) *</label>
+              <input type="text" id="qs-store" placeholder="e.g. Hudson Nonstop or Terminal Kiosk" required />
+            </div>
+            <div class="form-group">
+              <label for="qs-where">Terminal / Area</label>
+              <input type="text" id="qs-where" value="Past Security (At Gates)" />
+            </div>
+          </div>
+
+          <div id="qs-live-preview" class="overpay-scorecard hidden"></div>
+
+          <button type="submit" class="btn btn-primary btn-full" id="qs-submit-btn">Add This Price Spot</button>
+          <div id="qs-feedback" class="callout-banner hidden"></div>
+        </form>
+      </div>
+
+      <!-- FULL RECEIPT INTAKE -->
+      <div id="full-receipt-container" class="submit-grid">
+        <!-- Left Column: Where, Upload, Privacy -->
+        <div class="stack">
           <article class="panel">
-            <h3>1. Choose Submission Track</h3>
-            <div class="track-switcher" role="radiogroup" aria-label="Submission track">
-              <button type="button" class="track-btn active" data-track="airport" id="track-airport-btn">
-                <span class="track-title">Traveler &mdash; Airport Purchase</span>
-                <span class="track-desc">Concourse, terminal, or post-security concessionaire receipt</span>
+            <h3>1. Where Was This Receipt From?</h3>
+            <div class="track-cards" style="margin-top:12px;">
+              <button type="button" class="track-card active" id="track-airport-btn">
+                <strong>Airport Terminal</strong>
+                <span>Gate shop, restaurant, or kiosk</span>
               </button>
-              <button type="button" class="track-btn" data-track="street" id="track-street-btn">
-                <span class="track-title">Local Resident &mdash; Street Market</span>
-                <span class="track-desc">Nearby neighborhood store, bodega, or cafe baseline price</span>
+              <button type="button" class="track-card" id="track-street-btn">
+                <strong>Local Neighborhood Store</strong>
+                <span>Nearby grocery, pharmacy, or cafe</span>
               </button>
             </div>
           </article>
 
           <article class="panel">
-            <h3>2. Privacy &amp; Data Security</h3>
-            <div class="privacy-toggle-group">
-              <label class="radio-card">
+            <div class="panel-header">
+              <h3>2. Let Our Receipt Reader Fill This Out</h3>
+              <div style="display:flex; gap:6px;">
+                <button type="button" class="btn btn-outline btn-xs" id="load-sample-airport">Try Airport Example</button>
+                <button type="button" class="btn btn-outline btn-xs" id="load-sample-street">Try Local Example</button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="hint-airport">Airport City</label>
+              <select id="hint-airport"></select>
+            </div>
+
+            <div class="form-group">
+              <label for="receipt-image-input">Upload Receipt Photo (Location metadata removed automatically)</label>
+              <input type="file" id="receipt-image-input" accept="image/jpeg,image/png,image/webp" />
+            </div>
+
+            <div class="form-group">
+              <label for="receipt-raw-text">Or Paste Receipt Text</label>
+              <textarea id="receipt-raw-text" rows="4" placeholder="Example:&#10;HUDSON NEWS #412&#10;SMARTWATER 20OZ $6.29&#10;LAYS CHIPS $4.79"></textarea>
+            </div>
+
+            <button type="button" class="btn btn-primary btn-full" id="btn-run-agent1">
+              Scan Receipt &amp; Pre-Fill All Items
+            </button>
+            <div id="agent1-status" class="callout-banner hidden"></div>
+          </article>
+
+          <article class="panel">
+            <h3>3. Your Privacy Choice</h3>
+            <div style="margin-top:12px;">
+              <label class="privacy-choice">
                 <input type="radio" name="privacyMode" value="anonymous" checked id="privacy-anon" />
                 <div>
-                  <strong>Anonymous Submission (Default)</strong>
-                  <p>Zero personal data collected. Image EXIF/GPS metadata is stripped before inspection; only an unlinkable hash is stored.</p>
+                  <strong>Stay 100% Anonymous (Recommended)</strong>
+                  <p>No name, email, or photo GPS data is ever saved. Only the store items and prices join the public dataset.</p>
                 </div>
               </label>
-              <label class="radio-card">
+
+              <label class="privacy-choice">
                 <input type="radio" name="privacyMode" value="consent" id="privacy-consent" />
                 <div>
-                  <strong>Optional Policy-Support Consent (AES-256-GCM Encrypted)</strong>
-                  <p>Share optional demographic/contact info to support policy research &amp; journalism. Stored encrypted and decoupled from public pricing data.</p>
+                  <strong>Help Consumer Advocates Follow Up (Optional)</strong>
+                  <p>Share your ZIP code or email in a locked, encrypted vault separate from public receipt data.</p>
                 </div>
               </label>
             </div>
 
-            <div id="consent-fields-box" class="consent-box hidden">
-              <div class="consent-badge">Envelope Encryption Active (AES-256-GCM / Cloud KMS)</div>
+            <div id="consent-fields-box" class="consent-drawer hidden">
               <div class="form-row">
                 <div class="form-group">
                   <label for="consent-zip">Home ZIP Code (Optional)</label>
                   <input type="text" id="consent-zip" placeholder="e.g. 11432" maxlength="10" />
                 </div>
                 <div class="form-group">
-                  <label for="consent-freq">Annual Air Travel Frequency</label>
+                  <label for="consent-freq">How Often Do You Fly?</label>
                   <select id="consent-freq">
-                    <option value="occasional">1&ndash;3 trips / year</option>
-                    <option value="frequent">4&ndash;10 trips / year</option>
-                    <option value="heavy">11+ trips / year</option>
-                    <option value="local_resident">Local resident (non-traveler)</option>
+                    <option value="occasional">1&ndash;3 trips a year</option>
+                    <option value="frequent">4&ndash;10 trips a year</option>
+                    <option value="heavy">11+ trips a year</option>
+                    <option value="local_resident">Local neighbor (non-traveler)</option>
                   </select>
                 </div>
               </div>
               <div class="form-group">
-                <label for="consent-email">Email for Policy / Journalist Follow-up (Optional)</label>
-                <input type="email" id="consent-email" placeholder="volunteer@example.org" />
+                <label for="consent-email">Email for Consumer Story Follow-Up (Optional)</label>
+                <input type="email" id="consent-email" placeholder="you@example.org" />
               </div>
-              <label class="checkbox-inline">
+              <label style="display:flex; gap:8px; align-items:flex-start; font-size:13px; cursor:pointer;">
                 <input type="checkbox" id="consent-testimony" />
-                <span>I consent to be contacted if lawmakers or investigative journalists seek consumer testimony.</span>
+                <span>Journalists or consumer policy researchers may contact me about airport pricing.</span>
               </label>
             </div>
-          </article>
 
-          <article class="panel">
-            <div class="panel-header">
-              <h3>3. Upload or Paste Receipt for Agent 1</h3>
-              <div class="sample-btns">
-                <button type="button" class="btn btn-outline btn-xs" id="load-sample-airport">Sample Airport Receipt</button>
-                <button type="button" class="btn btn-outline btn-xs" id="load-sample-street">Sample Street Receipt</button>
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label for="hint-airport">Associated Airport Metro</label>
-              <select id="hint-airport"></select>
-            </div>
-
-            <div class="form-group">
-              <label for="receipt-image-input">Receipt Photo (Optional &mdash; EXIF/GPS stripped automatically)</label>
-              <input type="file" id="receipt-image-input" accept="image/jpeg,image/png,image/webp" />
-            </div>
-
-            <div class="form-group">
-              <label for="receipt-raw-text">Receipt Text / OCR Notes</label>
-              <textarea id="receipt-raw-text" rows="5" placeholder="Paste receipt text or line items, e.g.:&#10;HUDSON NEWS JFK T4&#10;DASANI WATER 20OZ $5.99&#10;LAYS CLASSIC 2.6OZ $4.79&#10;TAX $0.96"></textarea>
-            </div>
-
-            <button type="button" class="btn btn-primary btn-full" id="btn-run-agent1">
-              Run Agent 1: Inspect &amp; Pre-Fill Standardized Form
-            </button>
-            <div id="agent1-status" class="agent-feedback hidden"></div>
+            <details class="tech-details">
+              <summary>How we protect your data behind the scenes</summary>
+              <p style="margin:6px 0 0;">Uploaded photos have camera EXIF and GPS tags stripped before our AI reads the receipt. Optional contact details are locked with AES-256-GCM envelope encryption and never appear in the public table or CSV export.</p>
+            </details>
           </article>
         </div>
 
-        <!-- Right Column: Standardized Form (Editable Slots & Confirmation) -->
-        <div class="submit-right">
-          <article class="panel">
-            <div class="panel-header">
-              <h3>4. Review, Edit &amp; Confirm Standardized Form</h3>
-              <span class="panel-tag" id="form-track-badge">Airport Track</span>
-            </div>
-
-            <form id="standardized-receipt-form">
-              <div class="form-row">
-                <div class="form-group">
-                  <label for="std-merchant">Store / Brand Name (As Printed) *</label>
-                  <input type="text" id="std-merchant" required placeholder="e.g. Starbucks #7140 or Hudson News #412" />
-                </div>
-                <div class="form-group">
-                  <label for="std-vendor">Potential Chain Affiliation (Optional &mdash; Confirm if Known)</label>
-                  <select id="std-vendor"></select>
-                </div>
-              </div>
-              <div id="affiliation-hint-box" class="agent-feedback hidden" style="margin-top:-4px; margin-bottom:12px;"></div>
-
-              <div class="form-row">
-                <div class="form-group">
-                  <label for="std-airport">Airport Code *</label>
-                  <select id="std-airport" required></select>
-                </div>
-                <div class="form-group">
-                  <label for="std-location" id="std-location-label">Terminal / Gate (or Neighborhood / ZIP) *</label>
-                  <input type="text" id="std-location" required placeholder="e.g. Terminal 4, Gate B24 (Post-Security)" />
-                </div>
-              </div>
-
-              <div class="form-row">
-                <div class="form-group">
-                  <label for="std-date">Purchase Date</label>
-                  <input type="date" id="std-date" required />
-                </div>
-                <div class="form-group">
-                  <label for="std-time">Purchase Time</label>
-                  <input type="time" id="std-time" required />
-                </div>
-              </div>
-
-              <div class="line-items-header">
-                <h4>Standardized Line Items (Editable)</h4>
-                <button type="button" class="btn btn-outline btn-xs" id="btn-add-item">+ Add Item</button>
-              </div>
-              <div id="line-items-container" class="line-items-list"></div>
-
-              <div class="form-row totals-row">
-                <div class="form-group">
-                  <label for="std-tax">Tax (USD)</label>
-                  <input type="number" step="0.01" min="0" id="std-tax" value="0.00" />
-                </div>
-                <div class="form-group">
-                  <label for="std-total">Receipt Total (USD)</label>
-                  <input type="number" step="0.01" min="0" id="std-total" value="0.00" required />
-                </div>
-              </div>
-
-              <div class="confirm-box">
-                <label class="checkbox-inline">
-                  <input type="checkbox" id="volunteer-confirm-checkbox" required />
-                  <span><strong>Volunteer Accuracy Confirmation:</strong> I have reviewed the AI pre-filled slots, corrected any mistakes, and confirm this receipt is accurate.</span>
-                </label>
-              </div>
-
-              <button type="submit" class="btn btn-primary btn-full" id="btn-submit-receipt">
-                Confirm &amp; Submit to Public Database
-              </button>
-              <div id="submit-result-banner" class="agent-feedback hidden"></div>
-            </form>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <!-- TAB 3: 3-AGENT PIPELINE & AUDIT REPORT -->
-    <section id="tab-agents" class="tab-panel">
-      <div class="section-header">
-        <div>
-          <h2>Google AI 3-Agent Pipeline &amp; Audit Report</h2>
-          <p class="section-sub">Autonomous intake standardization, cross-regional trend analysis, and independent compliance auditing.</p>
-        </div>
-        <button class="btn btn-primary" id="btn-run-full-pipeline">Re-Run Agent 2 &amp; Agent 3</button>
-      </div>
-
-      <div class="agent-cards-grid">
-        <article class="panel agent-card">
-          <div class="agent-num">AGENT 01</div>
-          <h3>Intake &amp; Standardization</h3>
-          <p>Inspects receipt images/text via Gemini multimodal API, strips EXIF/GPS metadata, normalizes product SKUs, and pre-fills editable volunteer slots.</p>
-          <div class="agent-meta" id="agent1-meta">Ready for intake</div>
-        </article>
-        <article class="panel agent-card">
-          <div class="agent-num">AGENT 02</div>
-          <h3>Trend &amp; Regional Analyst</h3>
-          <p>Compares airport vs. street prices across regions, merchandise categories, concessionaire affiliations, and emerging post-security factors.</p>
-          <div class="agent-meta" id="agent2-meta">--</div>
-        </article>
-        <article class="panel agent-card">
-          <div class="agent-num">AGENT 03</div>
-          <h3>Audit, Report &amp; Visualizer</h3>
-          <p>Audits receipt integrity (outliers, duplicates, baseline gaps), verifies Agent 2 math, and updates the Transparency Report &amp; charts.</p>
-          <div class="agent-meta" id="agent3-meta">--</div>
-        </article>
-      </div>
-
-      <div class="report-grid">
-        <article class="panel report-main">
+        <!-- Right Column: Friendly Editable Form & Personal Overpay Preview -->
+        <article class="panel">
           <div class="panel-header">
-            <h3 id="report-title">Public Airport Pricing Transparency &amp; Compliance Audit</h3>
-            <a href="/api/export/csv" class="btn btn-outline btn-xs">Download CSV Spreadsheet</a>
+            <h3>4. Check Your Items &amp; See Your Overpay Breakdown</h3>
+            <span class="subtle-tag" id="form-track-badge">Airport Receipt</span>
           </div>
-          <p class="report-summary" id="report-exec-summary"></p>
 
-          <h4>Cross-Regional &amp; Vendor Findings (Agent 2)</h4>
-          <ul class="report-list" id="report-insights"></ul>
+          <form id="standardized-receipt-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="std-merchant">Store Name (As Printed on Receipt) *</label>
+                <input type="text" id="std-merchant" required placeholder="e.g. Starbucks #7140 or Hudson News" />
+              </div>
+              <div class="form-group">
+                <label for="std-vendor">Parent Company (Optional &mdash; Skip if Unsure)</label>
+                <select id="std-vendor"></select>
+              </div>
+            </div>
+            <div id="affiliation-hint-box" class="callout-banner hidden" style="margin-top:-4px; margin-bottom:14px;"></div>
 
-          <h4>Emerging Market Factors</h4>
-          <ul class="report-list" id="report-factors"></ul>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="std-airport">Airport *</label>
+                <select id="std-airport" required></select>
+              </div>
+              <div class="form-group">
+                <label for="std-location" id="std-location-label">Where in the Airport? *</label>
+                <input type="text" id="std-location" required placeholder="e.g. Terminal 4 — Past Security" />
+                <div class="chip-row" id="location-quick-chips">
+                  <button type="button" class="quick-chip" data-loc="Past Security (At Gates)">Past Security</button>
+                  <button type="button" class="quick-chip" data-loc="Before Security">Before Security</button>
+                  <button type="button" class="quick-chip" data-loc="Terminal 1 (Past Security)">T1</button>
+                  <button type="button" class="quick-chip" data-loc="Terminal 2 (Past Security)">T2</button>
+                  <button type="button" class="quick-chip" data-loc="Terminal 3 (Past Security)">T3</button>
+                  <button type="button" class="quick-chip" data-loc="Terminal 4 (Past Security)">T4</button>
+                </div>
+              </div>
+            </div>
 
-          <h4>Policy Recommendations</h4>
-          <ul class="report-list" id="report-recommendations"></ul>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="std-date">Date</label>
+                <input type="date" id="std-date" required />
+              </div>
+              <div class="form-group">
+                <label for="std-time">Time</label>
+                <input type="time" id="std-time" required />
+              </div>
+            </div>
 
-          <div class="methodology-note" id="report-methodology"></div>
+            <div class="line-items-header">
+              <h4>Items on Receipt (Edit Any Mistakes)</h4>
+              <button type="button" class="btn btn-outline btn-xs" id="btn-add-item">+ Add Another Item</button>
+            </div>
+            <div id="line-items-container" class="line-items-list"></div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="std-tax">Sales Tax ($)</label>
+                <input type="number" step="0.01" min="0" id="std-tax" value="0.00" />
+              </div>
+              <div class="form-group">
+                <label for="std-total">Receipt Total ($)</label>
+                <input type="number" step="0.01" min="0" id="std-total" value="0.00" required />
+              </div>
+            </div>
+
+            <!-- Instant Personal Overpay Scorecard -->
+            <div class="overpay-scorecard" id="personal-overpay-card">
+              <div class="scorecard-title">Instant Receipt Comparison</div>
+              <div class="scorecard-headline" id="scorecard-headline">Enter items above to compare against neighborhood prices</div>
+              <p class="scorecard-sub" id="scorecard-sub"></p>
+            </div>
+
+            <div style="background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:12px 14px; margin-bottom:14px;">
+              <label style="display:flex; gap:10px; align-items:flex-start; font-size:13.5px; cursor:pointer;">
+                <input type="checkbox" id="volunteer-confirm-checkbox" required style="margin-top:3px;" />
+                <span><strong>Looks good!</strong> I checked the items and prices above and confirm they match my purchase.</span>
+              </label>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-full" id="btn-submit-receipt">
+              Share Receipt &amp; Update Live Charts
+            </button>
+            <div id="submit-result-banner" class="callout-banner hidden"></div>
+          </form>
         </article>
-
-        <aside class="report-side">
-          <article class="panel">
-            <div class="panel-header">
-              <h3>Agent 3 Audit Flags</h3>
-              <span class="panel-tag" id="audit-flag-count">0 flags</span>
-            </div>
-            <div id="audit-flags-list" class="flags-list"></div>
-          </article>
-
-          <article class="panel">
-            <div class="panel-header">
-              <h3>Security &amp; Encryption Audit</h3>
-              <span class="panel-tag">AES-256-GCM</span>
-            </div>
-            <div id="security-audit-box" class="security-box"></div>
-          </article>
-        </aside>
       </div>
     </section>
 
-    <!-- TAB 4: DATABASE EXPLORER -->
-    <section id="tab-database" class="tab-panel">
-      <div class="section-header">
+    <!-- TAB 3: OPEN DATA & HOW WE CHECK -->
+    <section id="tab-open-data" class="tab-panel">
+      <div class="section-head">
         <div>
-          <h2>Crowdsourced Receipt Database</h2>
-          <p class="section-sub">Public, anonymized pricing records combining airport traveler receipts and local street-market baselines.</p>
+          <h2>How Every Receipt Is Checked &amp; Published</h2>
+          <p>Three automated Google AI helpers assist volunteers while keeping every number open for public inspection.</p>
+        </div>
+        <button class="btn btn-outline btn-sm" id="btn-run-full-pipeline">Re-Check All Numbers</button>
+      </div>
+
+      <div class="how-steps-grid">
+        <article class="step-card">
+          <span class="step-badge">Step 1 &bull; Receipt Reader</span>
+          <h3>Reads Every Line Item</h3>
+          <p>Removes photo location tags, reads the store name exactly as printed, lists all purchased items, and optionally looks up the parent company for you to confirm.</p>
+          <div class="subtle-tag" id="agent1-meta">Ready to scan receipts</div>
+        </article>
+
+        <article class="step-card">
+          <span class="step-badge">Step 2 &bull; Price Comparer</span>
+          <h3>Matches Against Local Stores</h3>
+          <p>Pairs each airport item with real neighborhood receipts in the same metro area and measures whether it stayed within the airport&rsquo;s 10&ndash;15% fair-pricing promise.</p>
+          <div class="subtle-tag" id="agent2-meta">--</div>
+        </article>
+
+        <article class="step-card">
+          <span class="step-badge">Step 3 &bull; Quality Checker</span>
+          <h3>Flags Duplicates &amp; Updates Charts</h3>
+          <p>Checks for duplicate receipts, unusual price typos, or cities that need more local street receipts before updating the public report below.</p>
+          <div class="subtle-tag" id="agent3-meta">--</div>
+        </article>
+      </div>
+
+      <div class="report-layout">
+        <article class="panel">
+          <div class="panel-header">
+            <h3 id="report-title">Community Airport Price Report</h3>
+            <a href="/api/export/csv" class="btn btn-outline btn-xs">Download Full Spreadsheet</a>
+          </div>
+          <p class="editorial-quote" id="report-exec-summary"></p>
+
+          <h4 style="margin:18px 0 8px;">Key Takeaways</h4>
+          <ul class="clean-list" id="report-insights"></ul>
+
+          <h4 style="margin:18px 0 8px;">Why Prices Spike Inside Terminals</h4>
+          <ul class="clean-list" id="report-factors"></ul>
+
+          <h4 style="margin:18px 0 8px;">What Can Fix Airport Overcharging</h4>
+          <ul class="clean-list" id="report-recommendations"></ul>
+
+          <p style="font-size:13px; color:var(--ink-muted); border-top:1px solid var(--border); padding-top:12px; margin-top:18px;" id="report-methodology"></p>
+        </article>
+
+        <div class="stack">
+          <article class="panel">
+            <div class="panel-header">
+              <h3>Data Quality Notes</h3>
+              <span class="subtle-tag" id="audit-flag-count">0 notes</span>
+            </div>
+            <div id="audit-flags-list" style="display:flex; flex-direction:column; gap:10px; max-height:340px; overflow-y:auto;"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <h3>Privacy &amp; Safety Summary</h3>
+              <span class="badge badge-fair">Verified Safe</span>
+            </div>
+            <div id="security-audit-box" style="font-size:13.5px; display:flex; flex-direction:column; gap:8px;"></div>
+          </article>
+        </div>
+      </div>
+
+      <!-- Public Searchable Receipt Log -->
+      <div class="section-head" style="margin-top:16px;">
+        <div>
+          <h2>Every Shared Receipt</h2>
+          <p>Browse all anonymized airport and neighborhood purchases side by side.</p>
         </div>
         <div class="filter-bar">
-          <select id="filter-track" aria-label="Filter by track">
-            <option value="all">All Tracks</option>
+          <select id="filter-track" aria-label="Filter by place">
+            <option value="all">Airport &amp; Local Stores</option>
             <option value="airport">Airport Only</option>
-            <option value="street">Street Baseline Only</option>
+            <option value="street">Local Stores Only</option>
           </select>
           <select id="filter-airport" aria-label="Filter by airport">
-            <option value="all">All Airports</option>
+            <option value="all">All Cities</option>
           </select>
-          <input type="search" id="filter-search" placeholder="Search merchant or item..." aria-label="Search receipts" />
+          <input type="search" id="filter-search" placeholder="Search store or item..." aria-label="Search receipts" />
         </div>
       </div>
 
@@ -408,11 +492,11 @@
             <thead>
               <tr>
                 <th>Date</th>
-                <th>Track</th>
-                <th>Airport</th>
-                <th>Merchant &amp; Affiliation</th>
-                <th>Location / Neighborhood</th>
-                <th>Items</th>
+                <th>Where</th>
+                <th>City</th>
+                <th>Store &amp; Parent Company</th>
+                <th>Terminal or Street</th>
+                <th>Items &amp; Prices</th>
                 <th>Total</th>
                 <th>Privacy</th>
               </tr>
@@ -426,8 +510,12 @@
 
   <footer class="site-footer">
     <div class="container footer-inner">
-      <div>Airport Price Watch &bull; Open Civic Market Transparency</div>
-      <div>Built for Google Cloud Run, Firestore, Cloud KMS &amp; Gemini AI API</div>
+      <div><strong>Airport Price Watch</strong> &mdash; Crowdsourced consumer transparency</div>
+      <div class="footer-links">
+        <a href="/submit.html">Phone Submission App</a>
+        <a href="/admin.html">Admin Review Console</a>
+        <a href="/api/export/csv">Download CSV Data</a>
+      </div>
     </div>
   </footer>
 

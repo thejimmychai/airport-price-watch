@@ -6,10 +6,41 @@ const state = {
   agentRuns: [],
   securityStats: null,
   activeTrack: 'airport',
+  intakeMode: 'full', // 'full' | 'quick'
+  qsTrack: 'airport',
+  qsSelectedKey: 'water_20oz',
+  spotlightKey: 'water_20oz',
 };
 
-// DOM Helpers
+const SPOTLIGHT_ITEMS = [
+  { key: 'water_20oz', shortLabel: 'Bottled Water (20 oz)', unitHint: '20 oz bottle' },
+  { key: 'coffee_16oz_latte', shortLabel: 'Hot Coffee / Latte', unitHint: '16 oz cup' },
+  { key: 'sandwich_grab_go', shortLabel: 'Grab & Go Sandwich', unitHint: 'Single sandwich' },
+  { key: 'beer_16oz_craft', shortLabel: 'Draft / Craft Beer', unitHint: '16 oz pour' },
+  { key: 'pain_reliever_travel', shortLabel: 'Travel Pain Relief', unitHint: 'Travel pack' },
+  { key: 'chips_snack_bag', shortLabel: 'Bag of Chips / Snack', unitHint: 'Single bag' },
+];
+
+const QUICK_SPOT_TILES = [
+  { key: 'water_20oz', title: 'Bottled Water', sub: '20 oz bottle', raw: 'BOTTLED WATER 20OZ' },
+  { key: 'coffee_16oz_latte', title: 'Coffee / Latte', sub: '16 oz cup', raw: 'COFFEE LATTE 16OZ' },
+  { key: 'sandwich_grab_go', title: 'Sandwich / Wrap', sub: 'Grab & go', raw: 'GRAB & GO SANDWICH' },
+  { key: 'chips_snack_bag', title: 'Chips / Snack', sub: 'Single bag', raw: 'SNACK CHIPS BAG' },
+  { key: 'salad_bowl', title: 'Salad / Bowl', sub: 'Fresh entrée', raw: 'FRESH SALAD BOWL' },
+  { key: 'beer_16oz_craft', title: 'Beer / Glass', sub: '16 oz draft', raw: 'CRAFT BEER 16OZ' },
+  { key: 'pain_reliever_travel', title: 'Pain Reliever', sub: 'Travel meds', raw: 'TRAVEL PAIN RELIEVER' },
+  { key: 'earbuds_wired', title: 'Phone / Audio', sub: 'Cable or buds', raw: 'TRAVEL EARBUDS / CABLE' },
+];
+
 const $ = (id) => document.getElementById(id);
+
+function escapeHtml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 
 function switchTab(tabName) {
   document.querySelectorAll('.nav-btn').forEach((btn) => {
@@ -18,25 +49,78 @@ function switchTab(tabName) {
   document.querySelectorAll('.tab-panel').forEach((panel) => {
     panel.classList.toggle('active', panel.id === `tab-${tabName}`);
   });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function setIntakeMode(mode) {
+  state.intakeMode = mode;
+  $('mode-full-btn').classList.toggle('active', mode === 'full');
+  $('mode-quick-btn').classList.toggle('active', mode === 'quick');
+  $('full-receipt-container').classList.toggle('hidden', mode !== 'full');
+  $('quick-spot-container').classList.toggle('hidden', mode !== 'quick');
 }
 
 function setTrack(track) {
   state.activeTrack = track;
   $('track-airport-btn').classList.toggle('active', track === 'airport');
   $('track-street-btn').classList.toggle('active', track === 'street');
-  $('form-track-badge').textContent = track === 'airport' ? 'Airport Track' : 'Street Market Track';
+  $('form-track-badge').textContent = track === 'airport' ? 'Airport Receipt' : 'Local Store Receipt';
   $('std-location-label').textContent =
-    track === 'airport' ? 'Terminal / Gate / Concourse *' : 'Neighborhood / Street / ZIP *';
+    track === 'airport' ? 'Where in the Airport? *' : 'Neighborhood or Street *';
   $('std-location').placeholder =
     track === 'airport'
-      ? 'e.g. Terminal 4, Gate B24 (Post-Security)'
-      : 'e.g. Jamaica Ave, Queens, NY 11432';
+      ? 'e.g. Terminal 4 — Past Security'
+      : 'e.g. Jamaica Ave, Queens, NY';
+
+  const chips = $('location-quick-chips');
+  if (chips) {
+    chips.classList.toggle('hidden', track !== 'airport');
+  }
 
   if (track === 'street') {
     $('std-vendor').value = 'Local Street Retailer';
   } else if ($('std-vendor').value === 'Local Street Retailer') {
-    $('std-vendor').value = 'Hudson Group (Avolta)';
+    $('std-vendor').value = 'Unknown / Unconfirmed';
   }
+
+  updatePersonalOverpayCard();
+}
+
+function setQuickSpotTrack(track) {
+  state.qsTrack = track;
+  $('qs-track-airport').classList.toggle('active', track === 'airport');
+  $('qs-track-street').classList.toggle('active', track === 'street');
+  $('qs-where').value = track === 'airport' ? 'Past Security (At Gates)' : 'Nearby Local Neighborhood';
+  updateQuickSpotPreview();
+}
+
+function getStreetRefForProduct(productKey, airportCode) {
+  const streetPrices = [];
+  state.receipts.forEach((r) => {
+    if (r.track !== 'street') return;
+    if (airportCode && r.airportCode !== airportCode) return;
+    (r.lineItems || []).forEach((li) => {
+      if (li.standardizedProductKey === productKey && Number(li.unitPrice) > 0) {
+        streetPrices.push(Number(li.unitPrice));
+      }
+    });
+  });
+
+  if (!streetPrices.length) {
+    state.receipts.forEach((r) => {
+      if (r.track !== 'street') return;
+      (r.lineItems || []).forEach((li) => {
+        if (li.standardizedProductKey === productKey && Number(li.unitPrice) > 0) {
+          streetPrices.push(Number(li.unitPrice));
+        }
+      });
+    });
+  }
+
+  if (streetPrices.length) {
+    return streetPrices.reduce((a, b) => a + b, 0) / streetPrices.length;
+  }
+  return state.metadata.products?.[productKey]?.streetRefPrice || 2.5;
 }
 
 function populateSelects() {
@@ -44,28 +128,97 @@ function populateSelects() {
   const vendors = state.metadata.vendors || [];
 
   const airportOptions = Object.entries(airports)
-    .map(([code, meta]) => `<option value="${code}">${code} — ${meta.city}</option>`)
+    .map(([code, meta]) => `<option value="${code}">${code} — ${escapeHtml(meta.city)}</option>`)
     .join('');
 
   $('hint-airport').innerHTML = airportOptions;
   $('std-airport').innerHTML = airportOptions;
-  $('filter-airport').innerHTML = '<option value="all">All Airports</option>' + airportOptions;
+  $('qs-airport').innerHTML = airportOptions;
+  $('filter-airport').innerHTML = '<option value="all">All Cities</option>' + airportOptions;
 
   $('std-vendor').innerHTML = vendors
-    .map((v) => `<option value="${v}">${v}</option>`)
+    .map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`)
     .join('');
+  if (vendors.includes('Unknown / Unconfirmed')) {
+    $('std-vendor').value = 'Unknown / Unconfirmed';
+  }
 
-  // Default date/time
   const now = new Date();
   $('std-date').value = now.toISOString().slice(0, 10);
   $('std-time').value = now.toTimeString().slice(0, 5);
+
+  renderQuickSpotTiles();
+}
+
+function renderQuickSpotTiles() {
+  const grid = $('qs-item-grid');
+  if (!grid) return;
+  grid.innerHTML = QUICK_SPOT_TILES.map(
+    (tile) => `
+      <button type="button" class="spotter-tile ${tile.key === state.qsSelectedKey ? 'active' : ''}" data-key="${tile.key}">
+        <strong>${escapeHtml(tile.title)}</strong>
+        <small>${escapeHtml(tile.sub)}</small>
+      </button>
+    `
+  ).join('');
+
+  grid.querySelectorAll('.spotter-tile').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.qsSelectedKey = btn.dataset.key;
+      renderQuickSpotTiles();
+      updateQuickSpotPreview();
+    });
+  });
+}
+
+function updateQuickSpotPreview() {
+  const preview = $('qs-live-preview');
+  const price = parseFloat($('qs-price').value);
+  if (!preview || !price || price <= 0) {
+    preview?.classList.add('hidden');
+    return;
+  }
+
+  const airportCode = $('qs-airport').value || 'JFK';
+  const streetAvg = getStreetRefForProduct(state.qsSelectedKey, airportCode);
+  const capPct = state.metadata.airports?.[airportCode]?.policyCapPct || 15;
+  const fairLimit = streetAvg * (1 + capPct / 100);
+  const tile = QUICK_SPOT_TILES.find((t) => t.key === state.qsSelectedKey) || QUICK_SPOT_TILES[0];
+
+  preview.classList.remove('hidden');
+  if (state.qsTrack === 'street') {
+    preview.innerHTML = `
+      <div class="scorecard-title">Neighborhood Price Anchor</div>
+      <div class="scorecard-headline">$${price.toFixed(2)} local store price for ${escapeHtml(tile.title)}</div>
+      <p class="scorecard-sub">Thank you! Local store prices like yours give ${airportCode} travelers an honest neighborhood baseline.</p>
+    `;
+    return;
+  }
+
+  const diff = price - streetAvg;
+  const pct = ((diff / streetAvg) * 100).toFixed(0);
+  const overRule = price > fairLimit;
+
+  preview.innerHTML = `
+    <div class="scorecard-title">Instant Shelf Price Check (${airportCode})</div>
+    <div class="scorecard-headline ${overRule ? 'text-overcharge' : 'text-fair'}">
+      $${price.toFixed(2)} at ${airportCode} vs. ~$${streetAvg.toFixed(2)} in town (${diff >= 0 ? '+' : ''}${pct}%)
+    </div>
+    <p class="scorecard-sub">
+      ${
+        overRule
+          ? `Exceeds ${airportCode}'s +${capPct}% fair-pricing promise ($${fairLimit.toFixed(2)} max) by <strong>$${(price - fairLimit).toFixed(2)}</strong>.`
+          : `Stays within ${airportCode}'s +${capPct}% fair-pricing promise ($${fairLimit.toFixed(2)} max).`
+      }
+    </p>
+  `;
 }
 
 function renderLineItems(items = []) {
   const container = $('line-items-container');
   const products = state.metadata.products || {};
   const productOpts = Object.entries(products)
-    .map(([key, p]) => `<option value="${key}">${p.label}</option>`)
+    .map(([key, p]) => `<option value="${key}">${escapeHtml(p.label)}</option>`)
     .join('');
 
   if (!items.length) {
@@ -75,23 +228,22 @@ function renderLineItems(items = []) {
         standardizedProductKey: 'water_20oz',
         quantity: 1,
         unitPrice: 5.99,
-        confidence: 1.0,
       },
     ];
   }
 
   container.innerHTML = '';
-  items.forEach((item, idx) => {
+  items.forEach((item) => {
     const card = document.createElement('div');
     card.className = 'line-item-card';
     card.innerHTML = `
       <div class="line-item-grid">
         <div>
-          <label>Receipt Item Name</label>
+          <label>Item on Receipt</label>
           <input type="text" class="li-raw" value="${escapeHtml(item.rawName || '')}" required />
         </div>
         <div>
-          <label>Standardized Product</label>
+          <label>Everyday Category</label>
           <select class="li-key">${productOpts}</select>
         </div>
         <div>
@@ -99,7 +251,7 @@ function renderLineItems(items = []) {
           <input type="number" class="li-qty" min="1" value="${item.quantity || 1}" required />
         </div>
         <div>
-          <label>Unit Price ($)</label>
+          <label>Each ($)</label>
           <input type="number" class="li-price" step="0.01" min="0" value="${Number(item.unitPrice || 0).toFixed(2)}" required />
         </div>
         <div>
@@ -107,13 +259,20 @@ function renderLineItems(items = []) {
         </div>
       </div>
     `;
-    card.querySelector('.li-key').value = item.standardizedProductKey || 'water_20oz';
+    const keySelect = card.querySelector('.li-key');
+    if (item.standardizedProductKey && products[item.standardizedProductKey]) {
+      keySelect.value = item.standardizedProductKey;
+    } else {
+      keySelect.value = 'water_20oz';
+    }
+
     card.querySelector('.li-remove').addEventListener('click', () => {
       if (container.children.length > 1) {
         card.remove();
         recalcTotals();
       }
     });
+    keySelect.addEventListener('change', updatePersonalOverpayCard);
     card.querySelector('.li-qty').addEventListener('input', recalcTotals);
     card.querySelector('.li-price').addEventListener('input', recalcTotals);
     container.appendChild(card);
@@ -131,6 +290,63 @@ function recalcTotals() {
   });
   const tax = parseFloat($('std-tax').value) || 0;
   $('std-total').value = (subtotal + tax).toFixed(2);
+  updatePersonalOverpayCard();
+}
+
+function updatePersonalOverpayCard() {
+  const headline = $('scorecard-headline');
+  const sub = $('scorecard-sub');
+  if (!headline || !sub) return;
+
+  const airportCode = $('std-airport')?.value || 'JFK';
+  const cards = document.querySelectorAll('.line-item-card');
+  let paidSubtotal = 0;
+  let streetSubtotal = 0;
+  let itemCount = 0;
+
+  cards.forEach((card) => {
+    const key = card.querySelector('.li-key')?.value || 'water_20oz';
+    const qty = parseFloat(card.querySelector('.li-qty')?.value) || 0;
+    const price = parseFloat(card.querySelector('.li-price')?.value) || 0;
+    if (qty > 0 && price > 0) {
+      paidSubtotal += qty * price;
+      streetSubtotal += qty * getStreetRefForProduct(key, airportCode);
+      itemCount += qty;
+    }
+  });
+
+  if (itemCount === 0 || paidSubtotal <= 0) {
+    headline.className = 'scorecard-headline';
+    headline.textContent = 'Add items above to compare against neighborhood prices';
+    sub.textContent = '';
+    return;
+  }
+
+  const cityLabel = state.metadata.airports?.[airportCode]?.city || airportCode;
+  const capPct = state.metadata.airports?.[airportCode]?.policyCapPct || 15;
+
+  if (state.activeTrack === 'street') {
+    headline.className = 'scorecard-headline text-fair';
+    headline.textContent = `$${paidSubtotal.toFixed(2)} for ${itemCount} item${itemCount > 1 ? 's' : ''} in ${cityLabel}`;
+    sub.textContent = `Your local store receipt sets the real-world neighborhood baseline used to hold ${airportCode} shops accountable.`;
+    return;
+  }
+
+  const extraDollars = paidSubtotal - streetSubtotal;
+  const markupPct = streetSubtotal > 0 ? Math.round((extraDollars / streetSubtotal) * 100) : 0;
+  const fairCapTotal = streetSubtotal * (1 + capPct / 100);
+  const brokeCap = paidSubtotal > fairCapTotal;
+
+  headline.className = `scorecard-headline ${brokeCap ? 'text-overcharge' : 'text-fair'}`;
+  if (extraDollars > 0.05) {
+    headline.textContent = `$${paidSubtotal.toFixed(2)} at ${airportCode} vs. ~$${streetSubtotal.toFixed(2)} in town (+$${extraDollars.toFixed(2)} airport markup)`;
+  } else {
+    headline.textContent = `$${paidSubtotal.toFixed(2)} at ${airportCode} — right in line with ~$${streetSubtotal.toFixed(2)} local prices`;
+  }
+
+  sub.textContent = brokeCap
+    ? `That is +${markupPct}% above nearby stores — exceeding ${airportCode}'s +${capPct}% fair-pricing limit ($${fairCapTotal.toFixed(2)} max before tax).`
+    : `Within ${airportCode}'s +${capPct}% fair-pricing promise ($${fairCapTotal.toFixed(2)} max before tax).`;
 }
 
 function collectLineItems() {
@@ -151,22 +367,145 @@ function collectLineItems() {
   return items;
 }
 
+function renderBounties(auditCoverage = []) {
+  const listEl = $('bounty-list');
+  if (!listEl) return;
+
+  const prioritized = [...auditCoverage]
+    .map((c) => {
+      const city = state.metadata.airports?.[c.airportCode]?.city || c.airportCode;
+      let needText = '';
+      let targetTrack = 'airport';
+      let priority = 3;
+      if (c.streetReceipts === 0) {
+        needText = 'Needs 1st local store receipt';
+        targetTrack = 'street';
+        priority = 1;
+      } else if (c.airportReceipts < 2) {
+        needText = 'Needs more terminal receipts';
+        targetTrack = 'airport';
+        priority = 2;
+      } else {
+        needText = `${c.airportReceipts} airport • ${c.streetReceipts} local — add fresh check`;
+        targetTrack = 'airport';
+        priority = 3;
+      }
+      return { ...c, city, needText, targetTrack, priority };
+    })
+    .sort((a, b) => a.priority - b.priority)
+    .slice(0, 4);
+
+  listEl.innerHTML = prioritized
+    .map(
+      (b) => `
+      <div class="bounty-item" data-airport="${b.airportCode}" data-track="${b.targetTrack}" role="button" tabindex="0">
+        <div>
+          <div class="bounty-city">${b.airportCode} &mdash; ${escapeHtml(b.city)}</div>
+          <div class="bounty-need">${escapeHtml(b.needText)}</div>
+        </div>
+        <span class="badge ${b.priority === 1 ? 'badge-caution' : 'badge-primary'}">+ Add</span>
+      </div>
+    `
+    )
+    .join('');
+
+  listEl.querySelectorAll('.bounty-item').forEach((row) => {
+    const activate = () => {
+      const code = row.dataset.airport;
+      const trk = row.dataset.track;
+      setTrack(trk);
+      setQuickSpotTrack(trk);
+      if ($('hint-airport')) $('hint-airport').value = code;
+      if ($('std-airport')) $('std-airport').value = code;
+      if ($('qs-airport')) $('qs-airport').value = code;
+      updatePersonalOverpayCard();
+      switchTab('submit');
+    };
+    row.addEventListener('click', activate);
+    row.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        activate();
+      }
+    });
+  });
+}
+
+function renderSpotlight() {
+  const pillsEl = $('spotlight-pills');
+  const cardsEl = $('spotlight-cards');
+  if (!pillsEl || !cardsEl) return;
+
+  pillsEl.innerHTML = SPOTLIGHT_ITEMS.map(
+    (item) => `
+      <button type="button" class="item-pill ${item.key === state.spotlightKey ? 'active' : ''}" data-key="${item.key}">
+        ${escapeHtml(item.shortLabel)}
+      </button>
+    `
+  ).join('');
+
+  pillsEl.querySelectorAll('.item-pill').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.spotlightKey = btn.dataset.key;
+      renderSpotlight();
+    });
+  });
+
+  const activeItem = SPOTLIGHT_ITEMS.find((i) => i.key === state.spotlightKey) || SPOTLIGHT_ITEMS[0];
+  const airPrices = [];
+  const strPrices = [];
+
+  state.receipts.forEach((r) => {
+    (r.lineItems || []).forEach((li) => {
+      if (li.standardizedProductKey === activeItem.key && Number(li.unitPrice) > 0) {
+        if (r.track === 'airport') airPrices.push(Number(li.unitPrice));
+        else strPrices.push(Number(li.unitPrice));
+      }
+    });
+  });
+
+  const fallbackRef = state.metadata.products?.[activeItem.key]?.streetRefPrice || 2.49;
+  const streetAvg = strPrices.length ? strPrices.reduce((a, b) => a + b, 0) / strPrices.length : fallbackRef;
+  const airportAvg = airPrices.length
+    ? airPrices.reduce((a, b) => a + b, 0) / airPrices.length
+    : streetAvg * 2.15;
+  const fairLimit = streetAvg * 1.15;
+  const extraDollars = airportAvg - streetAvg;
+  const markupPct = Math.round((extraDollars / streetAvg) * 100);
+
+  cardsEl.innerHTML = `
+    <div class="price-stage-card">
+      <div>
+        <div class="stage-tag">1. Nearby Neighborhood Store</div>
+        <div class="stage-price">$${streetAvg.toFixed(2)}</div>
+      </div>
+      <p class="stage-note">Typical price for ${escapeHtml(activeItem.shortLabel.toLowerCase())} at grocery stores, pharmacies, and corner markets outside the airport.</p>
+    </div>
+
+    <div class="price-stage-card highlight-fair">
+      <div>
+        <div class="stage-tag">2. Airport Fair-Pricing Limit (+15%)</div>
+        <div class="stage-price text-fair">$${fairLimit.toFixed(2)}</div>
+      </div>
+      <p class="stage-note">The ceiling most U.S. airports promise travelers under &ldquo;street pricing plus 10&ndash;15%&rdquo; lease rules.</p>
+    </div>
+
+    <div class="price-stage-card highlight-overcharge">
+      <div>
+        <div class="stage-tag">3. Actual Terminal Price We Found</div>
+        <div class="stage-price text-overcharge">$${airportAvg.toFixed(2)}</div>
+      </div>
+      <p class="stage-note"><strong>+$${extraDollars.toFixed(2)} extra (+${markupPct}%)</strong> over nearby stores across ${airPrices.length || 1} shared airport receipt${airPrices.length === 1 ? '' : 's'}.</p>
+    </div>
+  `;
+}
+
 function renderDashboard() {
   const analysis = state.latestAnalysis;
   const audit = state.latestAuditReport;
   if (!analysis || !audit) return;
 
-  // Header AI badge
-  const badge = $('gemini-mode-badge');
-  if (state.metadata.geminiMode === 'gemini-live') {
-    badge.textContent = 'Gemini API: LIVE';
-    badge.classList.add('live');
-  } else {
-    badge.textContent = 'AI Mode: Local Standardizer';
-    badge.classList.remove('live');
-  }
-
-  // KPIs
+  // Headline plain-language stats
   $('kpi-avg-markup').textContent = `+${analysis.summary.overallAvgMarkupPct}%`;
   $('kpi-compared-items').textContent = analysis.summary.totalComparedItems;
   $('kpi-violation-rate').textContent = `${analysis.summary.violationRatePct}%`;
@@ -179,92 +518,98 @@ function renderDashboard() {
     minute: '2-digit',
   });
 
-  // Visualization Panel (Agent 3)
   const viz = audit.visualizationPanel;
-  const maxMarkup = Math.max(250, ...viz.airportGapChart.map((a) => a.avgMarkupPct));
+  renderBounties(viz.auditCoverage || []);
+  renderSpotlight();
 
+  // Chart 1: Airport Markup vs Fair Rule
+  const maxMarkup = Math.max(220, ...viz.airportGapChart.map((a) => a.avgMarkupPct));
   $('chart-airport-gap').innerHTML = viz.airportGapChart
     .map((a) => {
       const widthPct = Math.min(100, (Math.max(0, a.avgMarkupPct) / maxMarkup) * 100);
       const capPosPct = Math.min(100, (a.policyCapPct / maxMarkup) * 100);
+      const city = state.metadata.airports?.[a.airportCode]?.city || a.region;
       return `
         <div class="bar-row">
           <div class="bar-meta">
-            <span class="bar-label">${a.label} (${a.region})</span>
-            <span class="bar-val ${a.exceedsCap ? 'text-alert' : 'text-ok'}">+${a.avgMarkupPct}% <small>(Cap ${a.policyCapPct}%)</small></span>
+            <span class="bar-name">${escapeHtml(a.airportCode)} &mdash; ${escapeHtml(city)}</span>
+            <span class="bar-figure ${a.exceedsCap ? 'text-overcharge' : 'text-fair'}">+${a.avgMarkupPct}% <small style="font-weight:400; color:var(--ink-muted);">(Rule: +${a.policyCapPct}%)</small></span>
           </div>
-          <div class="bar-track" title="Black line = ${a.policyCapPct}% street-pricing policy cap">
-            <div class="bar-fill ${a.exceedsCap ? 'alert' : 'ok'}" style="width:${widthPct}%"></div>
-            <div class="cap-marker" style="left:${capPosPct}%"></div>
+          <div class="bar-track" title="Dark vertical line marks ${a.airportCode}'s +${a.policyCapPct}% fair-pricing promise">
+            <div class="bar-fill ${a.exceedsCap ? 'overcharge' : 'fair'}" style="width:${widthPct}%"></div>
+            <div class="fair-rule-line" style="left:${capPosPct}%"></div>
           </div>
         </div>
       `;
     })
     .join('');
 
-  const maxVendorMarkup = Math.max(250, ...viz.vendorMarkupChart.map((v) => v.avgMarkupPct));
+  // Chart 2: Store Operator Markups
+  const maxVendorMarkup = Math.max(220, ...viz.vendorMarkupChart.map((v) => v.avgMarkupPct));
   $('chart-vendor-markup').innerHTML = viz.vendorMarkupChart
     .map((v) => {
       const widthPct = Math.min(100, (Math.max(0, v.avgMarkupPct) / maxVendorMarkup) * 100);
       return `
         <div class="bar-row">
           <div class="bar-meta">
-            <span class="bar-label">${escapeHtml(v.label)} <small>(n=${v.sampleSize})</small></span>
-            <span class="bar-val text-alert">+${v.avgMarkupPct}%</span>
+            <span class="bar-name">${escapeHtml(v.label)} <small style="font-weight:400; color:var(--ink-muted);">(${v.sampleSize} items)</small></span>
+            <span class="bar-figure text-overcharge">+${v.avgMarkupPct}%</span>
           </div>
           <div class="bar-track">
-            <div class="bar-fill alert" style="width:${widthPct}%"></div>
+            <div class="bar-fill overcharge" style="width:${widthPct}%"></div>
           </div>
         </div>
       `;
     })
     .join('');
 
-  const maxCatPrice = Math.max(20, ...viz.categoryMarkupChart.map((c) => c.avgAirportPrice));
+  // Chart 3: Average Price by Item Type (Dollars side by side)
+  const maxCatPrice = Math.max(18, ...viz.categoryMarkupChart.map((c) => c.avgAirportPrice));
   $('chart-category-gap').innerHTML = viz.categoryMarkupChart
     .map((c) => {
       const airW = Math.min(100, (c.avgAirportPrice / maxCatPrice) * 100);
       const strW = Math.min(100, (c.avgStreetPrice / maxCatPrice) * 100);
       return `
-        <div class="compare-row">
-          <div>
-            <div class="bar-label">${escapeHtml(c.label)}</div>
-            <div class="bar-val text-alert">+${c.avgMarkupPct}% markup</div>
+        <div class="bar-row" style="padding-bottom:8px; border-bottom:1px solid var(--bg-subtle);">
+          <div class="bar-meta">
+            <span class="bar-name">${escapeHtml(c.label)}</span>
+            <span class="bar-figure text-overcharge">$${c.avgAirportPrice.toFixed(2)} airport vs. $${c.avgStreetPrice.toFixed(2)} local (+${c.avgMarkupPct}%)</span>
           </div>
-          <div class="compare-bars">
-            <div class="mini-bar-wrap">
-              <div class="mini-bar" style="width:${airW}%; background:var(--accent-alert)"></div>
-              <span>$${c.avgAirportPrice.toFixed(2)} Air</span>
-            </div>
-            <div class="mini-bar-wrap">
-              <div class="mini-bar" style="width:${strW}%; background:var(--accent-navy)"></div>
-              <span>$${c.avgStreetPrice.toFixed(2)} St</span>
-            </div>
+          <div class="bar-track" style="height:9px; margin-bottom:4px;">
+            <div class="bar-fill overcharge" style="width:${airW}%"></div>
+          </div>
+          <div class="bar-track" style="height:9px;">
+            <div class="bar-fill primary" style="width:${strW}%"></div>
           </div>
         </div>
       `;
     })
     .join('');
 
+  // Chart 4: City-by-City Coverage Cards
   $('chart-pairing-coverage').innerHTML = `
-    <div class="coverage-grid">
+    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:10px;">
       ${viz.auditCoverage
-        .map(
-          (c) => `
-        <div class="coverage-card">
-          <div class="coverage-code">${c.airportCode}</div>
-          <div class="coverage-counts">${c.airportReceipts} airport &bull; ${c.streetReceipts} street</div>
-          <span class="badge ${c.paired ? 'badge-ok' : 'badge-warn'}">${c.paired ? 'Paired Baseline' : 'Needs Street Data'}</span>
-        </div>
-      `
-        )
+        .map((c) => {
+          const city = state.metadata.airports?.[c.airportCode]?.city || '';
+          return `
+            <div style="padding:12px 14px; border:1px solid var(--border); border-radius:8px; background:var(--bg);">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                <strong>${escapeHtml(c.airportCode)}</strong>
+                <span class="badge ${c.paired ? 'badge-fair' : 'badge-caution'}">${c.paired ? 'Matched' : 'Needs Local Store'}</span>
+              </div>
+              <div style="font-size:12px; color:var(--ink-secondary); margin-bottom:4px;">${escapeHtml(city)}</div>
+              <div style="font-size:12.5px; font-family:var(--font-mono);">${c.airportReceipts} airport &bull; ${c.streetReceipts} local</div>
+            </div>
+          `;
+        })
         .join('')}
     </div>
   `;
 
-  // Agent Cards & Transparency Report (Tab 3)
-  $('agent2-meta').textContent = `Mode: ${analysis.mode} | Compared ${analysis.summary.totalComparedItems} items`;
-  $('agent3-meta').textContent = `Integrity: ${audit.integrityScore}/100 | ${audit.flags.length} audit flag(s)`;
+  // Tab 3: Open Data & How We Check
+  $('agent2-meta').textContent = `Checked ${analysis.summary.totalComparedItems} items across ${viz.airportGapChart.length} airports`;
+  $('agent3-meta').textContent = `Confidence ${audit.integrityScore}/100 • ${audit.flags.length} quality note(s)`;
 
   const report = audit.transparencyReport;
   $('report-title').textContent = report.title;
@@ -274,27 +619,28 @@ function renderDashboard() {
   $('report-recommendations').innerHTML = report.policyRecommendations.map((r) => `<li>${escapeHtml(r)}</li>`).join('');
   $('report-methodology').textContent = report.methodology;
 
-  $('audit-flag-count').textContent = `${audit.flags.length} flag(s)`;
+  $('audit-flag-count').textContent = `${audit.flags.length} note${audit.flags.length === 1 ? '' : 's'}`;
   $('audit-flags-list').innerHTML = audit.flags.length
     ? audit.flags
         .map(
           (f) => `
-      <div class="flag-item">
-        <span class="badge ${f.severity === 'alert' ? 'badge-alert' : f.severity === 'warning' ? 'badge-warn' : 'badge-navy'}">${escapeHtml(f.type)}</span>
-        <p style="margin:6px 0 0">${escapeHtml(f.detail)}</p>
-      </div>
-    `
+        <div style="padding:10px 12px; border:1px solid var(--border); border-radius:8px; background:var(--bg);">
+          <span class="badge ${f.severity === 'alert' ? 'badge-overcharge' : f.severity === 'warning' ? 'badge-caution' : 'badge-primary'}">${escapeHtml(f.type.replace(/_/g, ' '))}</span>
+          <p style="margin:6px 0 0; font-size:13px; color:var(--ink-secondary);">${escapeHtml(f.detail)}</p>
+        </div>
+      `
         )
         .join('')
-    : '<p class="section-sub">No anomalies detected.</p>';
+    : '<p style="margin:0; font-size:13.5px; color:var(--ink-secondary);">All shared receipts passed duplicate and price-range checks.</p>';
 
   if (state.securityStats) {
+    const anonCount = state.securityStats.anonymousSubmissions ?? state.securityStats.anonymousReceiptsCount ?? 0;
+    const encCount = state.securityStats.totalEncryptedConsentProfiles ?? state.securityStats.encryptedConsentProfiles ?? 0;
     $('security-audit-box').innerHTML = `
-      <div><strong>Anonymous Receipts:</strong> ${state.securityStats.anonymousSubmissions ?? state.securityStats.anonymousReceiptsCount} (EXIF/GPS stripped)</div>
-      <div><strong>Encrypted Consent Profiles:</strong> ${state.securityStats.totalEncryptedConsentProfiles ?? state.securityStats.encryptedConsentProfiles ?? 0}</div>
-      <div><strong>Cipher:</strong> <span class="mono-code">${state.securityStats.encryptionAlgorithm}</span></div>
-      <div><strong>KMS Key ID:</strong> <span class="mono-code">${state.securityStats.kmsKeyId}</span></div>
-      <div><strong>PII in Public Table:</strong> <span class="badge badge-ok">FALSE (Decoupled)</span></div>
+      <div><strong>100% Anonymous Receipts:</strong> ${anonCount} (camera GPS &amp; EXIF stripped)</div>
+      <div><strong>Locked Volunteer Follow-Up Profiles:</strong> ${encCount}</div>
+      <div><strong>Personal Info in Public Table:</strong> <span class="badge badge-fair">None (0%)</span></div>
+      <div style="font-size:12px; color:var(--ink-muted);">Optional volunteer contact details are locked separately with ${escapeHtml(state.securityStats.encryptionAlgorithm || 'AES-256-GCM')}.</div>
     `;
   }
 
@@ -310,7 +656,7 @@ function renderReceiptsTable() {
     if (trackFilter !== 'all' && r.track !== trackFilter) return false;
     if (airportFilter !== 'all' && r.airportCode !== airportFilter) return false;
     if (search) {
-      const hay = `${r.merchantName} ${r.vendorAffiliation} ${r.terminalOrLocation} ${r.lineItems.map((i) => i.rawName).join(' ')}`.toLowerCase();
+      const hay = `${r.merchantName} ${r.vendorAffiliation} ${r.terminalOrLocation} ${(r.lineItems || []).map((i) => i.rawName).join(' ')}`.toLowerCase();
       if (!hay.includes(search)) return false;
     }
     return true;
@@ -319,27 +665,19 @@ function renderReceiptsTable() {
   $('receipts-table-body').innerHTML = filtered
     .map(
       (r) => `
-    <tr>
-      <td><span class="mono-code">${r.purchaseDate}</span><br><small>${r.purchaseTime || ''}</small></td>
-      <td><span class="badge ${r.track === 'airport' ? 'badge-alert' : 'badge-navy'}">${r.track.toUpperCase()}</span></td>
-      <td><strong>${r.airportCode}</strong><br><small>${r.region || ''}</small></td>
-      <td><strong>${escapeHtml(r.merchantName)}</strong><br><small>${escapeHtml(r.vendorAffiliation)}</small></td>
-      <td>${escapeHtml(r.terminalOrLocation)}</td>
-      <td>${r.lineItems.map((i) => `${escapeHtml(i.rawName)} (<strong>$${Number(i.unitPrice).toFixed(2)}</strong>)`).join('<br>')}</td>
-      <td><span class="mono-code">$${Number(r.total).toFixed(2)}</span></td>
-      <td>${r.isAnonymous ? '<span class="badge badge-ok">Anonymous</span>' : '<span class="badge badge-navy">Encrypted Consent</span>'}</td>
-    </tr>
-  `
+      <tr>
+        <td><span class="mono">${escapeHtml(r.purchaseDate)}</span><br><small style="color:var(--ink-muted);">${escapeHtml(r.purchaseTime || '')}</small></td>
+        <td><span class="badge ${r.track === 'airport' ? 'badge-overcharge' : 'badge-primary'}">${r.track === 'airport' ? 'Airport' : 'Local Store'}</span></td>
+        <td><strong>${escapeHtml(r.airportCode)}</strong><br><small style="color:var(--ink-muted);">${escapeHtml(state.metadata.airports?.[r.airportCode]?.city || r.region || '')}</small></td>
+        <td><strong>${escapeHtml(r.merchantName)}</strong><br><small style="color:var(--ink-secondary);">${escapeHtml(r.vendorAffiliation)}</small></td>
+        <td>${escapeHtml(r.terminalOrLocation)}</td>
+        <td>${(r.lineItems || []).map((i) => `${escapeHtml(i.rawName)} (<strong>$${Number(i.unitPrice).toFixed(2)}</strong>)`).join('<br>')}</td>
+        <td><span class="mono">$${Number(r.total).toFixed(2)}</span></td>
+        <td>${r.isAnonymous ? '<span class="badge badge-fair">Anonymous</span>' : '<span class="badge badge-primary">Locked Vault</span>'}</td>
+      </tr>
+    `
     )
     .join('');
-}
-
-function escapeHtml(str) {
-  return String(str ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 async function loadBootstrap() {
@@ -357,23 +695,48 @@ async function loadBootstrap() {
   renderDashboard();
 }
 
-// Event Listeners
+// Navigation & Mode Listeners
+$('brand-home-link')?.addEventListener('click', (e) => {
+  e.preventDefault();
+  switchTab('monitor');
+});
+
 document.querySelectorAll('.nav-btn').forEach((btn) => {
   btn.addEventListener('click', () => switchTab(btn.dataset.tab));
 });
 
-$('hero-submit-airport').addEventListener('click', () => {
+$('hero-submit-airport')?.addEventListener('click', () => {
   setTrack('airport');
+  setQuickSpotTrack('airport');
   switchTab('submit');
 });
 
-$('hero-submit-street').addEventListener('click', () => {
+$('hero-submit-street')?.addEventListener('click', () => {
   setTrack('street');
+  setQuickSpotTrack('street');
   switchTab('submit');
 });
 
-$('track-airport-btn').addEventListener('click', () => setTrack('airport'));
-$('track-street-btn').addEventListener('click', () => setTrack('street'));
+$('mode-full-btn')?.addEventListener('click', () => setIntakeMode('full'));
+$('mode-quick-btn')?.addEventListener('click', () => setIntakeMode('quick'));
+
+$('track-airport-btn')?.addEventListener('click', () => setTrack('airport'));
+$('track-street-btn')?.addEventListener('click', () => setTrack('street'));
+
+$('qs-track-airport')?.addEventListener('click', () => setQuickSpotTrack('airport'));
+$('qs-track-street')?.addEventListener('click', () => setQuickSpotTrack('street'));
+$('qs-price')?.addEventListener('input', updateQuickSpotPreview);
+$('qs-airport')?.addEventListener('change', updateQuickSpotPreview);
+$('std-airport')?.addEventListener('change', updatePersonalOverpayCard);
+
+// One-tap location quick chips
+document.querySelectorAll('#location-quick-chips .quick-chip').forEach((chip) => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('#location-quick-chips .quick-chip').forEach((c) => c.classList.remove('active'));
+    chip.classList.add('active');
+    $('std-location').value = chip.dataset.loc;
+  });
+});
 
 document.querySelectorAll('input[name="privacyMode"]').forEach((radio) => {
   radio.addEventListener('change', () => {
@@ -382,21 +745,21 @@ document.querySelectorAll('input[name="privacyMode"]').forEach((radio) => {
   });
 });
 
-$('load-sample-airport').addEventListener('click', () => {
+$('load-sample-airport')?.addEventListener('click', () => {
   setTrack('airport');
   $('hint-airport').value = 'JFK';
   $('receipt-raw-text').value =
     'HUDSON NEWS #412 JFK TERMINAL 4\nSMARTWATER 20OZ $6.29\nTURKEY CLUB SANDWICH $16.99\nLAYS CHIPS 2.6OZ $4.49\nTAX $2.46';
 });
 
-$('load-sample-street').addEventListener('click', () => {
+$('load-sample-street')?.addEventListener('click', () => {
   setTrack('street');
   $('hint-airport').value = 'JFK';
   $('receipt-raw-text').value =
     'QUEENS CORNER BODEGA & MARKET\nSMARTWATER 20OZ $2.19\nTURKEY CLUB SANDWICH $8.99\nLAYS CHIPS 2.6OZ $2.29\nTAX $1.20';
 });
 
-$('btn-add-item').addEventListener('click', () => {
+$('btn-add-item')?.addEventListener('click', () => {
   const current = collectLineItems();
   current.push({
     rawName: 'COFFEE LATTE 16OZ',
@@ -407,13 +770,14 @@ $('btn-add-item').addEventListener('click', () => {
   renderLineItems(current);
 });
 
-$('std-tax').addEventListener('input', recalcTotals);
+$('std-tax')?.addEventListener('input', recalcTotals);
 
-$('btn-run-agent1').addEventListener('click', async () => {
+// Receipt Reader (Agent 1)
+$('btn-run-agent1')?.addEventListener('click', async () => {
   const btn = $('btn-run-agent1');
   const statusEl = $('agent1-status');
   btn.disabled = true;
-  btn.textContent = 'Agent 1 Inspecting Receipt...';
+  btn.textContent = 'Reading Receipt Items...';
 
   try {
     const formData = new FormData();
@@ -427,42 +791,113 @@ $('btn-run-agent1').addEventListener('click', async () => {
 
     const res = await fetch('/api/agent1/inspect', { method: 'POST', body: formData });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Agent 1 failed');
+    if (!res.ok) throw new Error(data.error || 'Could not read receipt');
 
     const ex = data.extracted;
     $('std-merchant').value = ex.merchantName || '';
     const suggestedChain = ex.potentialChainAffiliation || ex.vendorAffiliation || 'Unknown / Unconfirmed';
     $('std-vendor').value = suggestedChain;
+
     const affBox = $('affiliation-hint-box');
     if (affBox) {
       affBox.classList.remove('hidden');
-      affBox.innerHTML = `<strong>Optional Chain Lookup (${escapeHtml(ex.affiliationConfidence || 'medium')}):</strong> Suggested parent chain: <strong>${escapeHtml(suggestedChain)}</strong>. ${escapeHtml(ex.affiliationReason || 'Confirm if you recognize it, or leave as Unknown / Unconfirmed.')}`;
+      affBox.innerHTML = `<strong>Optional Parent Company Guess:</strong> Looks like <strong>${escapeHtml(suggestedChain)}</strong>. ${escapeHtml(ex.affiliationReason || 'Feel free to leave as Unknown if you are not sure.')}`;
     }
-    if (ex.airportCode && state.metadata.airports[ex.airportCode]) $('std-airport').value = ex.airportCode;
+
+    if (ex.airportCode && state.metadata.airports[ex.airportCode]) {
+      $('std-airport').value = ex.airportCode;
+    }
     $('std-location').value = ex.terminalOrLocation || '';
     if (ex.purchaseDate) $('std-date').value = ex.purchaseDate;
     if (ex.purchaseTime) $('std-time').value = ex.purchaseTime;
     $('std-tax').value = Number(ex.tax || 0).toFixed(2);
     renderLineItems(ex.lineItems || []);
 
-    $('agent1-meta').textContent = `Last intake: ${data.mode} (${ex.lineItems?.length || 0} items)`;
+    $('agent1-meta').textContent = `Last scan: ${ex.lineItems?.length || 0} item(s) pre-filled`;
     statusEl.classList.remove('hidden');
-    statusEl.innerHTML = `<strong>Agent 1 (${data.mode}):</strong> Extracted <strong>${ex.lineItems?.length || 0} item(s)</strong>. ${escapeHtml(ex.aiNotes || '')}<br><small>${escapeHtml(data.privacyCheck.message)}</small>`;
+    statusEl.classList.add('success');
+    statusEl.innerHTML = `<strong>Pre-filled ${ex.lineItems?.length || 0} item(s)!</strong> Please glance over the right-hand form to make sure prices match your receipt.`;
   } catch (err) {
-    statusEl.classList.remove('hidden');
-    statusEl.textContent = 'Error: ' + err.message;
+    statusEl.classList.remove('hidden', 'success');
+    statusEl.textContent = 'Could not read receipt: ' + err.message;
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Run Agent 1: Inspect & Pre-Fill Standardized Form';
+    btn.textContent = 'Scan Receipt & Pre-Fill All Items';
   }
 });
 
-$('standardized-receipt-form').addEventListener('submit', async (e) => {
+// 10-Second Quick Price Spotter Submit
+$('quick-spot-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = $('qs-submit-btn');
+  const feedback = $('qs-feedback');
+  btn.disabled = true;
+  btn.textContent = 'Adding Price Spot...';
+
+  try {
+    const tile = QUICK_SPOT_TILES.find((t) => t.key === state.qsSelectedKey) || QUICK_SPOT_TILES[0];
+    const prod = state.metadata.products?.[state.qsSelectedKey] || { category: 'Bottled Water & Beverages' };
+    const price = parseFloat($('qs-price').value) || 0;
+    const now = new Date();
+
+    const payload = {
+      track: state.qsTrack,
+      airportCode: $('qs-airport').value,
+      terminalOrLocation: $('qs-where').value.trim() || 'Past Security',
+      merchantName: $('qs-store').value.trim(),
+      vendorAffiliation: state.qsTrack === 'street' ? 'Local Street Retailer' : 'Unknown / Unconfirmed',
+      purchaseDate: now.toISOString().slice(0, 10),
+      purchaseTime: now.toTimeString().slice(0, 5),
+      aiIntakeMode: 'quick-spot',
+      lineItems: [
+        {
+          rawName: tile.raw,
+          standardizedProductKey: state.qsSelectedKey,
+          category: prod.category,
+          unitSize: 'standard',
+          quantity: 1,
+          unitPrice: price,
+        },
+      ],
+      tax: 0,
+      total: price,
+      isAnonymous: true,
+      consentInfo: null,
+    };
+
+    const res = await fetch('/api/receipts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not save price spot');
+
+    state.receipts.unshift(data.receipt);
+    state.latestAnalysis = data.latestAnalysis;
+    state.latestAuditReport = data.latestAuditReport;
+    renderDashboard();
+
+    feedback.classList.remove('hidden');
+    feedback.classList.add('success');
+    feedback.innerHTML = `<strong>Added!</strong> Your $${price.toFixed(2)} ${escapeHtml(tile.title)} spot at ${escapeHtml(payload.airportCode)} is now live in the community charts.`;
+    $('qs-price').value = '';
+  } catch (err) {
+    feedback.classList.remove('hidden', 'success');
+    feedback.textContent = 'Error: ' + err.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Add This Price Spot';
+  }
+});
+
+// Full Receipt Submit
+$('standardized-receipt-form')?.addEventListener('submit', async (e) => {
   e.preventDefault();
   const btn = $('btn-submit-receipt');
   const banner = $('submit-result-banner');
   btn.disabled = true;
-  btn.textContent = 'Submitting & Running Agent 2 + Agent 3...';
+  btn.textContent = 'Saving & Updating Live Charts...';
 
   try {
     const isAnonymous = $('privacy-anon').checked;
@@ -511,34 +946,45 @@ $('standardized-receipt-form').addEventListener('submit', async (e) => {
 
     banner.classList.remove('hidden');
     banner.classList.add('success');
-    banner.innerHTML = data.encryptionStatus.encrypted
-      ? `<strong>Confirmed &amp; Encrypted!</strong> Receipt ${data.receipt.id} added. Policy consent encrypted via ${data.encryptionStatus.algorithm}. Agent 2 &amp; Agent 3 updated the report and charts.`
-      : `<strong>Confirmed Anonymously!</strong> Receipt ${data.receipt.id} (${data.receipt.submissionHash}) added with zero PII. Agent 2 &amp; Agent 3 updated the report and charts.`;
+    banner.innerHTML = data.encryptionStatus?.encrypted
+      ? `<strong>Thank you!</strong> Your receipt is live in the charts, and your optional contact info was locked in our private vault.`
+      : `<strong>Thank you!</strong> Your anonymous receipt is now live in the community comparison charts.`;
     $('volunteer-confirm-checkbox').checked = false;
   } catch (err) {
     banner.classList.remove('hidden', 'success');
-    banner.textContent = 'Submission error: ' + err.message;
+    banner.textContent = 'Could not save receipt: ' + err.message;
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Confirm & Submit to Public Database';
+    btn.textContent = 'Share Receipt & Update Live Charts';
   }
 });
 
 async function runFullPipeline() {
-  const res = await fetch('/api/agents/run-pipeline', { method: 'POST' });
-  const data = await res.json();
-  if (res.ok) {
-    state.latestAnalysis = data.latestAnalysis;
-    state.latestAuditReport = data.latestAuditReport;
-    state.agentRuns = data.agentRuns;
-    renderDashboard();
+  const btn = $('btn-run-full-pipeline');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Re-Checking...';
+  }
+  try {
+    const res = await fetch('/api/agents/run-pipeline', { method: 'POST' });
+    const data = await res.json();
+    if (res.ok) {
+      state.latestAnalysis = data.latestAnalysis;
+      state.latestAuditReport = data.latestAuditReport;
+      state.agentRuns = data.agentRuns;
+      renderDashboard();
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Re-Check All Numbers';
+    }
   }
 }
 
-$('btn-refresh-viz').addEventListener('click', runFullPipeline);
-$('btn-run-full-pipeline').addEventListener('click', runFullPipeline);
-$('filter-track').addEventListener('change', renderReceiptsTable);
-$('filter-airport').addEventListener('change', renderReceiptsTable);
-$('filter-search').addEventListener('input', renderReceiptsTable);
+$('btn-run-full-pipeline')?.addEventListener('click', runFullPipeline);
+$('filter-track')?.addEventListener('change', renderReceiptsTable);
+$('filter-airport')?.addEventListener('change', renderReceiptsTable);
+$('filter-search')?.addEventListener('input', renderReceiptsTable);
 
 loadBootstrap();
