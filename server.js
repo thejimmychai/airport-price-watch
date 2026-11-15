@@ -240,11 +240,15 @@ app.post('/api/receipts', async (req, res) => {
     saveDb(db);
 
     if (isSheetsEnabled()) {
-      await appendReceiptToGoogleSheet(newReceipt);
-      if (encryptedProfileRecord) {
-        await appendEncryptedConsentToGoogleSheet(encryptedProfileRecord);
+      try {
+        await appendReceiptToGoogleSheet(newReceipt);
+        if (encryptedProfileRecord) {
+          await appendEncryptedConsentToGoogleSheet(encryptedProfileRecord);
+        }
+        await syncDatabaseToGoogleSheet(db);
+      } catch (sheetsErr) {
+        console.warn('[Sheets Sync Warning]', sheetsErr.message);
       }
-      await syncDatabaseToGoogleSheet(db);
     }
 
     res.status(201).json({
@@ -437,7 +441,11 @@ app.patch('/api/admin/receipts/:id', async (req, res) => {
     saveDb(db);
 
     if (isSheetsEnabled()) {
-      await syncDatabaseToGoogleSheet(db);
+      try {
+        await syncDatabaseToGoogleSheet(db);
+      } catch (sheetsErr) {
+        console.warn('[Sheets Admin Sync Warning]', sheetsErr.message);
+      }
     }
 
     res.json({
