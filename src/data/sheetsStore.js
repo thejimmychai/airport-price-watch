@@ -16,14 +16,80 @@ function isSheetsEnabled() {
   return Boolean(process.env.GSHEETS_ENABLED === 'true' || process.env.GSHEETS_SPREADSHEET_ID);
 }
 
+function hasLocalGsheetsCli() {
+  return fs.existsSync('/opt/antigravity/bin/gsheets');
+}
+
+async function fetchCloudRunAccessToken() {
+  const url =
+    'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token?scopes=https://www.googleapis.com/auth/spreadsheets';
+  const res = await fetch(url, {
+    headers: { 'Metadata-Flavor': 'Google' },
+    signal: AbortSignal.timeout(4000),
+  });
+  if (!res.ok) {
+    throw new Error(`Metadata server token error (${res.status})`);
+  }
+  const json = await res.json();
+  return json.access_token;
+}
+
+async function runRestSheetsOperations(spreadsheetId, operations) {
+  const token = await fetchCloudRunAccessToken();
+  const baseUrl = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}`;
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json',
+  };
+
+  for (const item of operations) {
+    if (item.op === 'clear') {
+      await fetch(`${baseUrl}/values/${encodeURIComponent(item.range)}:clear`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({}),
+      });
+    } else if (item.op === 'write') {
+      const res = await fetch(
+        `${baseUrl}/values/${encodeURIComponent(item.range)}?valueInputOption=USER_ENTERED`,
+        {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({ values: item.data }),
+        }
+      );
+      if (!res.ok) {
+        throw new Error(`Google Sheets write failed (${res.status})`);
+      }
+    } else if (item.op === 'append') {
+      const res = await fetch(
+        `${baseUrl}/values/${encodeURIComponent(item.range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ values: item.data }),
+        }
+      );
+      if (!res.ok) {
+        throw new Error(`Google Sheets append failed (${res.status})`);
+      }
+    }
+  }
+  return { ok: true, mode: 'cloud-run-rest' };
+}
+
 async function runGsheetsBatch(spreadsheetId, operations) {
+  if (!hasLocalGsheetsCli()) {
+    return runRestSheetsOperations(spreadsheetId, operations);
+  }
+
   const tmpFile = path.join('/tmp', `apw_gsheets_${Date.now()}_${Math.random().toString(16).slice(2)}.json`);
   try {
     fs.writeFileSync(tmpFile, JSON.stringify(operations, null, 2), 'utf8');
     const { stdout } = await execFileAsync('gsheets', ['mutate', 'batch', spreadsheetId, '-f', tmpFile], {
       timeout: 20000,
     });
-    return { ok: true, stdout };
+    return { ok: true, mode: 'gsheets-cli', stdout };
   } finally {
     if (fs.existsSync(tmpFile)) {
       fs.unlinkSync(tmpFile);
@@ -166,7 +232,7 @@ async function syncDatabaseToGoogleSheet(db) {
 
 async function appendReceiptToGoogleSheet(receipt) {
   const spreadsheetId = getSpreadsheetId();
-  const rows = receiptsToRows([receipt]).slice(1); // skip header
+  const rows = receiptsToRows([receipt]).slice(1);
   return runGsheetsBatch(spreadsheetId, [
     { op: 'append', range: 'Receipts!A1', data: rows },
   ]);
