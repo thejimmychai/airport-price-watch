@@ -1,0 +1,24 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/airport-price-watch:$COMMIT_SHA', '.']
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/airport-price-watch:$COMMIT_SHA']
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'airport-price-watch'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/airport-price-watch:$COMMIT_SHA'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--set-secrets'
+      - 'GEMINI_API_KEY=GEMINI_API_KEY:latest,APP_ENCRYPTION_KEY=APP_ENCRYPTION_KEY:latest'
+      - '--set-env-vars'
+      - 'GEMINI_MODEL=gemini-2.5-flash'
+images:
+  - 'gcr.io/$PROJECT_ID/airport-price-watch:$COMMIT_SHA'

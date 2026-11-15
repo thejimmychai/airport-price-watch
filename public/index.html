@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Airport Price Watch — Crowdsourced Airport vs. Street Market Transparency</title>
+  <meta name="description" content="Crowdsourced airport vs. local street market receipt monitoring powered by Google AI agents, continuing More Perfect Union's airport price-gouging investigation." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,500;0,6..72,600;0,6..72,700;1,6..72,500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">APW</div>
+        <div>
+          <div class="brand-title">Airport Price Watch</div>
+          <div class="brand-subtitle">Public Market Transparency &amp; Street-Pricing Audit</div>
+        </div>
+      </div>
+
+      <nav class="main-nav" aria-label="Primary navigation">
+        <button class="nav-btn active" data-tab="monitor" id="nav-monitor">Price Monitor</button>
+        <button class="nav-btn" data-tab="submit" id="nav-submit">Submit Receipt</button>
+        <button class="nav-btn" data-tab="agents" id="nav-agents">3-Agent Audit &amp; Report</button>
+        <button class="nav-btn" data-tab="database" id="nav-database">Database</button>
+      </nav>
+
+      <div class="header-status">
+        <span class="status-chip" id="gemini-mode-badge" title="Google AI API status">Checking AI...</span>
+        <a href="/api/export/csv" class="btn btn-outline btn-sm" id="btn-export-csv">Export CSV</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container main-content">
+    <!-- TAB 1: LIVE PRICE MONITOR -->
+    <section id="tab-monitor" class="tab-panel active">
+      <div class="editorial-hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Public Interest Market Watch &bull; Continuing More Perfect Union&rsquo;s Investigation</p>
+          <h1>Exposing the Airport-to-Street Price Gap in Real Time</h1>
+          <p class="hero-lead">
+            Many U.S. airports require concessionaires to honor &ldquo;street pricing&rdquo; policies&mdash;capping markups at 10% to 15% above nearby neighborhood rates. Travelers and local residents crowdsource receipts here so a 3-agent Google AI pipeline can standardize, benchmark, and audit compliance.
+          </p>
+          <div class="hero-actions">
+            <button class="btn btn-primary" id="hero-submit-airport">Submit Airport Receipt</button>
+            <button class="btn btn-secondary" id="hero-submit-street">Submit Local Street Receipt</button>
+            <a href="https://youtu.be/35ypZJ3Zc0Y?si=YJ5smcUJuvaspPpH" target="_blank" rel="noopener noreferrer" class="btn btn-link">Watch Pilot Investigation &rarr;</a>
+          </div>
+        </div>
+
+        <aside class="mission-card">
+          <div class="mission-card-label">Data Security &amp; Architecture</div>
+          <ul class="mission-list">
+            <li><strong>Zero-PII Default:</strong> Receipt photos strip EXIF/GPS metadata before AI inspection.</li>
+            <li><strong>Encrypted Policy Consent:</strong> Optional volunteer demographics use AES-256-GCM envelope encryption (Cloud KMS ready).</li>
+            <li><strong>Google Cloud Hosted:</strong> Designed for Cloud Run, Cloud Storage, Firestore &amp; Gemini API.</li>
+          </ul>
+        </aside>
+      </div>
+
+      <!-- KPI Strip -->
+      <div class="kpi-grid" id="kpi-grid">
+        <article class="kpi-card">
+          <div class="kpi-label">Avg. Airport Markup vs. Street</div>
+          <div class="kpi-value text-alert" id="kpi-avg-markup">--%</div>
+          <div class="kpi-sub">Across <span id="kpi-compared-items">0</span> standardized items</div>
+        </article>
+        <article class="kpi-card">
+          <div class="kpi-label">Policy Cap Violation Rate</div>
+          <div class="kpi-value text-alert" id="kpi-violation-rate">--%</div>
+          <div class="kpi-sub">Items exceeding 10&ndash;15% street-pricing cap</div>
+        </article>
+        <article class="kpi-card">
+          <div class="kpi-label">Crowdsourced Receipts</div>
+          <div class="kpi-value" id="kpi-total-receipts">--</div>
+          <div class="kpi-sub"><span id="kpi-airport-count">0</span> airport &bull; <span id="kpi-street-count">0</span> street baseline</div>
+        </article>
+        <article class="kpi-card">
+          <div class="kpi-label">Agent 3 Integrity Score</div>
+          <div class="kpi-value text-ok" id="kpi-integrity-score">--/100</div>
+          <div class="kpi-sub">Last audited <span id="kpi-last-updated">--</span></div>
+        </article>
+      </div>
+
+      <!-- Visualization Panel updated by Agent 3 -->
+      <div class="section-header">
+        <div>
+          <h2>Live Visualization Panel</h2>
+          <p class="section-sub">Automatically audited and updated by <strong>Agent 3 (Audit &amp; Visualization Updater)</strong> whenever new receipts arrive.</p>
+        </div>
+        <button class="btn btn-outline btn-sm" id="btn-refresh-viz">Refresh AI Audit</button>
+      </div>
+
+      <div class="viz-grid">
+        <article class="panel">
+          <div class="panel-header">
+            <h3>Airport Markup % vs. Policy Cap</h3>
+            <span class="panel-tag">By Airport Code</span>
+          </div>
+          <div id="chart-airport-gap" class="chart-container"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <h3>Markup % by Concessionaire Affiliation</h3>
+            <span class="panel-tag">Vendor Concentration</span>
+          </div>
+          <div id="chart-vendor-markup" class="chart-container"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <h3>Airport vs. Street Price by Category</h3>
+            <span class="panel-tag">Average USD</span>
+          </div>
+          <div id="chart-category-gap" class="chart-container"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <h3>Street-Baseline Pairing Coverage</h3>
+            <span class="panel-tag">Agent 3 Audit</span>
+          </div>
+          <div id="chart-pairing-coverage" class="chart-container"></div>
+        </article>
+      </div>
+    </section>
+
+    <!-- TAB 2: SUBMIT RECEIPT -->
+    <section id="tab-submit" class="tab-panel">
+      <div class="section-header">
+        <div>
+          <h2>Submit a Receipt</h2>
+          <p class="section-sub">Upload a receipt photo or paste receipt text. <strong>Agent 1</strong> strips metadata, extracts line items, and pre-fills the standardized form for your review.</p>
+        </div>
+      </div>
+
+      <div class="submit-layout">
+        <!-- Left Column: Track, Privacy & Receipt Intake -->
+        <div class="submit-left">
+          <article class="panel">
+            <h3>1. Choose Submission Track</h3>
+            <div class="track-switcher" role="radiogroup" aria-label="Submission track">
+              <button type="button" class="track-btn active" data-track="airport" id="track-airport-btn">
+                <span class="track-title">Traveler &mdash; Airport Purchase</span>
+                <span class="track-desc">Concourse, terminal, or post-security concessionaire receipt</span>
+              </button>
+              <button type="button" class="track-btn" data-track="street" id="track-street-btn">
+                <span class="track-title">Local Resident &mdash; Street Market</span>
+                <span class="track-desc">Nearby neighborhood store, bodega, or cafe baseline price</span>
+              </button>
+            </div>
+          </article>
+
+          <article class="panel">
+            <h3>2. Privacy &amp; Data Security</h3>
+            <div class="privacy-toggle-group">
+              <label class="radio-card">
+                <input type="radio" name="privacyMode" value="anonymous" checked id="privacy-anon" />
+                <div>
+                  <strong>Anonymous Submission (Default)</strong>
+                  <p>Zero personal data collected. Image EXIF/GPS metadata is stripped before inspection; only an unlinkable hash is stored.</p>
+                </div>
+              </label>
+              <label class="radio-card">
+                <input type="radio" name="privacyMode" value="consent" id="privacy-consent" />
+                <div>
+                  <strong>Optional Policy-Support Consent (AES-256-GCM Encrypted)</strong>
+                  <p>Share optional demographic/contact info to support policy research &amp; journalism. Stored encrypted and decoupled from public pricing data.</p>
+                </div>
+              </label>
+            </div>
+
+            <div id="consent-fields-box" class="consent-box hidden">
+              <div class="consent-badge">Envelope Encryption Active (AES-256-GCM / Cloud KMS)</div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="consent-zip">Home ZIP Code (Optional)</label>
+                  <input type="text" id="consent-zip" placeholder="e.g. 11432" maxlength="10" />
+                </div>
+                <div class="form-group">
+                  <label for="consent-freq">Annual Air Travel Frequency</label>
+                  <select id="consent-freq">
+                    <option value="occasional">1&ndash;3 trips / year</option>
+                    <option value="frequent">4&ndash;10 trips / year</option>
+                    <option value="heavy">11+ trips / year</option>
+                    <option value="local_resident">Local resident (non-traveler)</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="consent-email">Email for Policy / Journalist Follow-up (Optional)</label>
+                <input type="email" id="consent-email" placeholder="volunteer@example.org" />
+              </div>
+              <label class="checkbox-inline">
+                <input type="checkbox" id="consent-testimony" />
+                <span>I consent to be contacted if lawmakers or investigative journalists seek consumer testimony.</span>
+              </label>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <h3>3. Upload or Paste Receipt for Agent 1</h3>
+              <div class="sample-btns">
+                <button type="button" class="btn btn-outline btn-xs" id="load-sample-airport">Sample Airport Receipt</button>
+                <button type="button" class="btn btn-outline btn-xs" id="load-sample-street">Sample Street Receipt</button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="hint-airport">Associated Airport Metro</label>
+              <select id="hint-airport"></select>
+            </div>
+
+            <div class="form-group">
+              <label for="receipt-image-input">Receipt Photo (Optional &mdash; EXIF/GPS stripped automatically)</label>
+              <input type="file" id="receipt-image-input" accept="image/jpeg,image/png,image/webp" />
+            </div>
+
+            <div class="form-group">
+              <label for="receipt-raw-text">Receipt Text / OCR Notes</label>
+              <textarea id="receipt-raw-text" rows="5" placeholder="Paste receipt text or line items, e.g.:&#10;HUDSON NEWS JFK T4&#10;DASANI WATER 20OZ $5.99&#10;LAYS CLASSIC 2.6OZ $4.79&#10;TAX $0.96"></textarea>
+            </div>
+
+            <button type="button" class="btn btn-primary btn-full" id="btn-run-agent1">
+              Run Agent 1: Inspect &amp; Pre-Fill Standardized Form
+            </button>
+            <div id="agent1-status" class="agent-feedback hidden"></div>
+          </article>
+        </div>
+
+        <!-- Right Column: Standardized Form (Editable Slots & Confirmation) -->
+        <div class="submit-right">
+          <article class="panel">
+            <div class="panel-header">
+              <h3>4. Review, Edit &amp; Confirm Standardized Form</h3>
+              <span class="panel-tag" id="form-track-badge">Airport Track</span>
+            </div>
+
+            <form id="standardized-receipt-form">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="std-merchant">Merchant / Store Name *</label>
+                  <input type="text" id="std-merchant" required placeholder="e.g. Hudson News #412" />
+                </div>
+                <div class="form-group">
+                  <label for="std-vendor">Vendor Affiliation *</label>
+                  <select id="std-vendor" required></select>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="std-airport">Airport Code *</label>
+                  <select id="std-airport" required></select>
+                </div>
+                <div class="form-group">
+                  <label for="std-location" id="std-location-label">Terminal / Gate (or Neighborhood / ZIP) *</label>
+                  <input type="text" id="std-location" required placeholder="e.g. Terminal 4, Gate B24 (Post-Security)" />
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="std-date">Purchase Date</label>
+                  <input type="date" id="std-date" required />
+                </div>
+                <div class="form-group">
+                  <label for="std-time">Purchase Time</label>
+                  <input type="time" id="std-time" required />
+                </div>
+              </div>
+
+              <div class="line-items-header">
+                <h4>Standardized Line Items (Editable)</h4>
+                <button type="button" class="btn btn-outline btn-xs" id="btn-add-item">+ Add Item</button>
+              </div>
+              <div id="line-items-container" class="line-items-list"></div>
+
+              <div class="form-row totals-row">
+                <div class="form-group">
+                  <label for="std-tax">Tax (USD)</label>
+                  <input type="number" step="0.01" min="0" id="std-tax" value="0.00" />
+                </div>
+                <div class="form-group">
+                  <label for="std-total">Receipt Total (USD)</label>
+                  <input type="number" step="0.01" min="0" id="std-total" value="0.00" required />
+                </div>
+              </div>
+
+              <div class="confirm-box">
+                <label class="checkbox-inline">
+                  <input type="checkbox" id="volunteer-confirm-checkbox" required />
+                  <span><strong>Volunteer Accuracy Confirmation:</strong> I have reviewed the AI pre-filled slots, corrected any mistakes, and confirm this receipt is accurate.</span>
+                </label>
+              </div>
+
+              <button type="submit" class="btn btn-primary btn-full" id="btn-submit-receipt">
+                Confirm &amp; Submit to Public Database
+              </button>
+              <div id="submit-result-banner" class="agent-feedback hidden"></div>
+            </form>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: 3-AGENT PIPELINE & AUDIT REPORT -->
+    <section id="tab-agents" class="tab-panel">
+      <div class="section-header">
+        <div>
+          <h2>Google AI 3-Agent Pipeline &amp; Audit Report</h2>
+          <p class="section-sub">Autonomous intake standardization, cross-regional trend analysis, and independent compliance auditing.</p>
+        </div>
+        <button class="btn btn-primary" id="btn-run-full-pipeline">Re-Run Agent 2 &amp; Agent 3</button>
+      </div>
+
+      <div class="agent-cards-grid">
+        <article class="panel agent-card">
+          <div class="agent-num">AGENT 01</div>
+          <h3>Intake &amp; Standardization</h3>
+          <p>Inspects receipt images/text via Gemini multimodal API, strips EXIF/GPS metadata, normalizes product SKUs, and pre-fills editable volunteer slots.</p>
+          <div class="agent-meta" id="agent1-meta">Ready for intake</div>
+        </article>
+        <article class="panel agent-card">
+          <div class="agent-num">AGENT 02</div>
+          <h3>Trend &amp; Regional Analyst</h3>
+          <p>Compares airport vs. street prices across regions, merchandise categories, concessionaire affiliations, and emerging post-security factors.</p>
+          <div class="agent-meta" id="agent2-meta">--</div>
+        </article>
+        <article class="panel agent-card">
+          <div class="agent-num">AGENT 03</div>
+          <h3>Audit, Report &amp; Visualizer</h3>
+          <p>Audits receipt integrity (outliers, duplicates, baseline gaps), verifies Agent 2 math, and updates the Transparency Report &amp; charts.</p>
+          <div class="agent-meta" id="agent3-meta">--</div>
+        </article>
+      </div>
+
+      <div class="report-grid">
+        <article class="panel report-main">
+          <div class="panel-header">
+            <h3 id="report-title">Public Airport Pricing Transparency &amp; Compliance Audit</h3>
+            <a href="/api/export/csv" class="btn btn-outline btn-xs">Download CSV Spreadsheet</a>
+          </div>
+          <p class="report-summary" id="report-exec-summary"></p>
+
+          <h4>Cross-Regional &amp; Vendor Findings (Agent 2)</h4>
+          <ul class="report-list" id="report-insights"></ul>
+
+          <h4>Emerging Market Factors</h4>
+          <ul class="report-list" id="report-factors"></ul>
+
+          <h4>Policy Recommendations</h4>
+          <ul class="report-list" id="report-recommendations"></ul>
+
+          <div class="methodology-note" id="report-methodology"></div>
+        </article>
+
+        <aside class="report-side">
+          <article class="panel">
+            <div class="panel-header">
+              <h3>Agent 3 Audit Flags</h3>
+              <span class="panel-tag" id="audit-flag-count">0 flags</span>
+            </div>
+            <div id="audit-flags-list" class="flags-list"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <h3>Security &amp; Encryption Audit</h3>
+              <span class="panel-tag">AES-256-GCM</span>
+            </div>
+            <div id="security-audit-box" class="security-box"></div>
+          </article>
+        </aside>
+      </div>
+    </section>
+
+    <!-- TAB 4: DATABASE EXPLORER -->
+    <section id="tab-database" class="tab-panel">
+      <div class="section-header">
+        <div>
+          <h2>Crowdsourced Receipt Database</h2>
+          <p class="section-sub">Public, anonymized pricing records combining airport traveler receipts and local street-market baselines.</p>
+        </div>
+        <div class="filter-bar">
+          <select id="filter-track" aria-label="Filter by track">
+            <option value="all">All Tracks</option>
+            <option value="airport">Airport Only</option>
+            <option value="street">Street Baseline Only</option>
+          </select>
+          <select id="filter-airport" aria-label="Filter by airport">
+            <option value="all">All Airports</option>
+          </select>
+          <input type="search" id="filter-search" placeholder="Search merchant or item..." aria-label="Search receipts" />
+        </div>
+      </div>
+
+      <article class="panel table-panel">
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Track</th>
+                <th>Airport</th>
+                <th>Merchant &amp; Affiliation</th>
+                <th>Location / Neighborhood</th>
+                <th>Items</th>
+                <th>Total</th>
+                <th>Privacy</th>
+              </tr>
+            </thead>
+            <tbody id="receipts-table-body"></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div>Airport Price Watch &bull; Open Civic Market Transparency</div>
+      <div>Built for Google Cloud Run, Firestore, Cloud KMS &amp; Gemini AI API</div>
+    </div>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>
