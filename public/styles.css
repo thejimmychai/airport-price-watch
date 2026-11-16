@@ -46,6 +46,8 @@
 body {
   margin: 0;
   background-color: var(--bg);
+  background-image: radial-gradient(rgba(28, 59, 99, 0.035) 1px, transparent 0);
+  background-size: 24px 24px;
   color: var(--ink);
   font-family: var(--font-sans);
   font-size: 15.5px;
@@ -59,10 +61,54 @@ body {
   padding: 0 24px;
 }
 
+/* Airport Terminal Wayfinding Top Strip */
+.concourse-ribbon {
+  background: hsl(215, 58%, 16%);
+  color: hsl(38, 38%, 94%);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.concourse-ribbon-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 34px;
+  padding: 5px 0;
+  flex-wrap: wrap;
+}
+
+.concourse-route {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: hsl(40, 75%, 84%);
+}
+
+.concourse-route svg {
+  flex-shrink: 0;
+}
+
+.concourse-meta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  color: hsla(38, 35%, 92%, 0.85);
+}
+
+.concourse-sep {
+  opacity: 0.4;
+}
+
 /* Header & Navigation */
 .site-header {
-  background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(10px);
+  background: rgba(252, 250, 245, 0.94);
+  backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
@@ -74,7 +120,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  min-height: 72px;
+  min-height: 74px;
   flex-wrap: wrap;
   padding: 10px 0;
 }
@@ -88,22 +134,26 @@ body {
 }
 
 .brand-mark {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
   background: var(--primary);
   color: #fff;
-  font-family: var(--font-serif);
-  font-weight: 700;
-  font-size: 20px;
   display: grid;
   place-items: center;
-  box-shadow: 0 2px 6px rgba(28, 59, 100, 0.18);
+  box-shadow: 0 3px 10px rgba(28, 59, 100, 0.22);
+  flex-shrink: 0;
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.brand:hover .brand-mark {
+  transform: translateY(-1px);
+  background: var(--primary-hover);
 }
 
 .brand-title {
   font-family: var(--font-serif);
-  font-size: 21px;
+  font-size: 21.5px;
   font-weight: 700;
   letter-spacing: -0.015em;
   line-height: 1.1;
@@ -1441,4 +1491,596 @@ textarea {
     padding: 1.5px 5px;
   }
 }
+
+/* ==========================================================================
+   Editorial Finishes: Aviation Wayfinding, Reunion & Gathering, Fair Markets,
+   Affordability Impact & Civic Regulatory Oversight
+   ========================================================================== */
+
+/* Framed Hero Editorial Plate (Arrivals Reunion & Terminal Window) */
+.hero-editorial-plate {
+  margin-top: 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--surface-warm);
+}
+
+.hero-editorial-plate img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+
+.hero-plate-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border-top: 1px dashed var(--border-strong);
+  font-size: 12.5px;
+  color: var(--ink-secondary);
+  background: var(--surface-warm);
+}
+
+.hero-plate-tag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+
+/* Departure-Board Priority Monitor in Hero Aside */
+.bounty-aside.departure-monitor {
+  padding: 0;
+  overflow: hidden;
+  background: var(--surface-warm);
+}
+
+.board-header {
+  background: hsl(215, 52%, 18%);
+  color: hsl(38, 38%, 95%);
+  padding: 15px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.board-header-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: hsl(40, 75%, 84%);
+}
+
+.board-status-tag {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.11);
+  color: hsl(38, 38%, 92%);
+}
+
+.board-body {
+  padding: 22px 24px 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  flex: 1;
+}
+
+.bounty-row-left {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.bounty-code-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  padding: 5px 7px;
+  border-radius: 6px;
+  background: hsl(215, 48%, 19%);
+  color: hsl(42, 82%, 84%);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  flex-shrink: 0;
+}
+
+.board-footer-note {
+  padding-top: 12px;
+  border-top: 1px dashed var(--border-strong);
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+/* Terminal Index Code on Headline Stat Cards */
+.stat-index-code {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  margin-bottom: 6px;
+}
+
+/* Perforated Boarding-Pass Section Divider */
+.boarding-pass-divider {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 8px 0 32px;
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.boarding-pass-divider::before,
+.boarding-pass-divider::after {
+  content: '';
+  flex: 1;
+  border-top: 1.5px dashed var(--border-strong);
+}
+
+/* 3-Column Civic Story Band: Reunion, Fair Markets & Regulation */
+.civic-pillars-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px 30px;
+  margin-bottom: 32px;
+  box-shadow: var(--shadow-card);
+}
+
+.civic-pillars-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.civic-pillar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.civic-pillar-emblem {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--surface-warm);
+  border: 1px solid var(--border);
+  color: var(--primary);
+  display: grid;
+  place-items: center;
+  margin-bottom: 2px;
+}
+
+.civic-pillar-kicker {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-muted);
+}
+
+.civic-pillar h3 {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 19.5px;
+  line-height: 1.24;
+  color: var(--ink);
+}
+
+.civic-pillar p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-secondary);
+  line-height: 1.58;
+}
+
+/* Flight-Path Route Indicator & Family / Group of 4 Affordability Banner */
+.flight-path-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 9px 14px;
+  margin-bottom: 18px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-warm);
+  border: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ink-secondary);
+}
+
+.flight-path-node {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.flight-path-line {
+  flex: 1;
+  min-width: 28px;
+  border-top: 1.5px dashed var(--border-strong);
+}
+
+.family-impact-banner {
+  margin-top: 18px;
+  padding: 16px 20px;
+  border-radius: var(--radius-md);
+  background: var(--surface-warm);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.family-impact-copy {
+  flex: 1;
+  min-width: 240px;
+}
+
+.family-impact-kicker {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--primary);
+  margin-bottom: 3px;
+}
+
+.family-impact-headline {
+  font-family: var(--font-serif);
+  font-size: 18.5px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0 0 3px;
+}
+
+.family-impact-sub {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--ink-secondary);
+}
+
+.family-impact-figures {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.family-figure-box {
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  text-align: right;
+}
+
+.family-figure-label {
+  font-size: 11px;
+  color: var(--ink-muted);
+  display: block;
+}
+
+.family-figure-val {
+  font-family: var(--font-mono);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+/* Tab 2 Volunteer Welcome Boarding Strip */
+.volunteer-welcome-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 16px 22px;
+  margin-bottom: 22px;
+  border-radius: var(--radius-md);
+  background: var(--surface-warm);
+  border: 1px solid var(--border);
+}
+
+.volunteer-welcome-strip p {
+  margin: 3px 0 0;
+  font-size: 14px;
+  color: var(--ink-secondary);
+}
+
+.volunteer-pass-stub {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--primary);
+  background: var(--primary-soft);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
+/* Tab 3 Civic Oversight, Lease Rules & Video Investigation Briefing */
+.oversight-briefing-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px 30px;
+  margin-bottom: 30px;
+  box-shadow: var(--shadow-card);
+}
+
+.oversight-briefing-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 28px;
+  align-items: start;
+}
+
+.lease-clause-list {
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lease-clause-list li {
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-warm);
+  border: 1px solid var(--border);
+  font-size: 14px;
+  color: var(--ink-secondary);
+}
+
+.lease-clause-list li strong {
+  display: block;
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+
+.oversight-media-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.oversight-plate {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--surface-warm);
+}
+
+.oversight-plate img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+}
+
+.oversight-plate figcaption {
+  padding: 9px 13px;
+  font-size: 12px;
+  color: var(--ink-secondary);
+  border-top: 1px dashed var(--border-strong);
+}
+
+/* Desktop Inline Video Preview Window (More Perfect Union Investigation) */
+.mpu-preview-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--surface-warm);
+}
+
+.mpu-preview-top {
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.mpu-video-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #0d1520;
+  overflow: hidden;
+}
+
+.mpu-video-poster {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: #0d1520;
+  cursor: pointer;
+  display: block;
+  text-align: left;
+  color: #fff;
+}
+
+.mpu-video-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  opacity: 0.88;
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+
+.mpu-video-poster:hover img {
+  transform: scale(1.02);
+  opacity: 0.96;
+}
+
+.mpu-video-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(11, 20, 32, 0.16) 0%, rgba(11, 20, 32, 0.78) 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 14px;
+}
+
+.mpu-play-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mpu-play-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--overcharge);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.mpu-video-title {
+  font-family: var(--font-serif);
+  font-size: 16.5px;
+  font-weight: 700;
+  line-height: 1.22;
+}
+
+.mpu-video-sub {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.84);
+}
+
+.mpu-video-stage iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+
+/* Upgraded 3-Column Civic Colophon Footer */
+.site-footer {
+  background: var(--surface-warm);
+  border-top: 1px solid var(--border);
+  padding: 36px 0 28px;
+}
+
+.footer-colophon {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr;
+  gap: 28px;
+  padding-bottom: 22px;
+  border-bottom: 1px dashed var(--border-strong);
+  margin-bottom: 18px;
+}
+
+.footer-mission-title {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0 0 6px;
+}
+
+.footer-mission-copy {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--ink-secondary);
+  max-width: 50ch;
+}
+
+.footer-col-heading {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  margin: 0 0 8px;
+}
+
+.footer-nav-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13.5px;
+}
+
+.footer-nav-list a {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.footer-nav-list a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 980px) {
+  .civic-pillars-grid,
+  .oversight-briefing-grid,
+  .footer-colophon {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .concourse-meta {
+    display: none;
+  }
+  .family-impact-figures {
+    width: 100%;
+  }
+  .family-figure-box {
+    flex: 1;
+    text-align: left;
+  }
+}
+
 

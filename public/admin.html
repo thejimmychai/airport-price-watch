@@ -18,11 +18,22 @@
     * { box-sizing: border-box; }
     body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-sans); font-size: 14.5px; line-height: 1.5; }
     .container { max-width: 1260px; margin: 0 auto; padding: 0 22px; }
-    header { background: var(--navy); color: #fff; padding: 14px 0; margin-bottom: 24px; }
+    header { background: var(--navy); color: #fff; padding: 14px 0; margin-bottom: 22px; border-bottom: 1px solid rgba(255,255,255,0.14); }
     .header-inner { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-    .header-title { font-family: var(--font-serif); font-size: 22px; font-weight: 700; }
-    .header-sub { font-size: 12px; color: #b7c8e0; }
-    .nav-links { display: flex; gap: 8px; }
+    .header-brand { display: flex; align-items: center; gap: 12px; }
+    .header-emblem {
+      width: 40px; height: 40px; border-radius: 10px; background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.22); display: grid; place-items: center; flex-shrink: 0;
+    }
+    .header-title { margin: 0; font-family: var(--font-serif); font-size: 22px; font-weight: 700; line-height: 1.15; }
+    .header-sub { font-size: 12px; color: #c4d3e8; }
+    .oversight-strip {
+      background: #fdfbf7; border: 1px solid var(--border); border-radius: 8px;
+      padding: 12px 16px; margin-bottom: 18px; display: flex; align-items: center;
+      justify-content: space-between; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--ink-sub);
+    }
+    .oversight-strip strong { color: var(--ink); }
+    .nav-links { display: flex; gap: 8px; flex-wrap: wrap; }
     .nav-links a { color: #fff; text-decoration: none; font-size: 13px; font-weight: 600; padding: 7px 12px; border-radius: 6px; background: rgba(255,255,255,0.12); }
     .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 22px; }
     .kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; }
@@ -65,9 +76,17 @@
 <body>
   <header>
     <div class="container header-inner">
-      <div>
-        <div class="header-title">Airport Price Watch &mdash; Admin Console</div>
-        <div class="header-sub">Manual Submission Review, Price Correction &amp; Sign-Up Traffic Promotion Planner</div>
+      <div class="header-brand">
+        <div class="header-emblem" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3v17"/><path d="M7 20h10"/><path d="M5 8h14"/>
+            <path d="M5 8 3 13h4L5 8Z"/><path d="M19 8l-2 5h4l-2-5Z"/><path d="m9.5 4.5 2.5-2 2.5 2"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="header-title">Airport Price Watch &mdash; Oversight &amp; Audit Console</h1>
+          <div class="header-sub">Municipal Street-Pricing Lease Compliance, Concessionaire Verification &amp; Volunteer Outreach</div>
+        </div>
       </div>
       <div class="nav-links">
         <a href="/">Public Monitor</a>
@@ -78,11 +97,18 @@
   </header>
 
   <main class="container">
+    <div class="oversight-strip">
+      <div>
+        <strong>Public Concourse Audit Standard:</strong> Verify receipt line items against off-airport metro store baselines to flag operators exceeding <strong>Street + 10&ndash;15%</strong> municipal lease caps.
+      </div>
+      <span class="badge badge-navy">5,217 AIRPORTS INDEXED</span>
+    </div>
+
     <div class="kpi-grid">
       <div class="kpi-card"><div class="kpi-label">Total Submissions</div><div class="kpi-val" id="adm-total">--</div><div class="kpi-label">Airport + Street Receipts</div></div>
       <div class="kpi-card"><div class="kpi-label">Policy-Consent Sign-Ups</div><div class="kpi-val" style="color:var(--ok)" id="adm-signups">--</div><div class="kpi-label" id="adm-conv">--% conversion rate</div></div>
-      <div class="kpi-card"><div class="kpi-label">Pending Manual Review</div><div class="kpi-val" style="color:var(--warn)" id="adm-pending">--</div><div class="kpi-label">Needs admin verification</div></div>
-      <div class="kpi-card"><div class="kpi-label">Flagged Outliers</div><div class="kpi-val" style="color:var(--alert)" id="adm-flagged">--</div><div class="kpi-label">Require price correction</div></div>
+      <div class="kpi-card"><div class="kpi-label">Pending Manual Review</div><div class="kpi-val" style="color:var(--warn)" id="adm-pending">--</div><div class="kpi-label">Needs auditor verification</div></div>
+      <div class="kpi-card"><div class="kpi-label">Flagged Lease Outliers</div><div class="kpi-val" style="color:var(--alert)" id="adm-flagged">--</div><div class="kpi-label">Require price verification</div></div>
     </div>
 
     <div class="grid-2">

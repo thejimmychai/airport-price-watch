@@ -643,11 +643,14 @@ function renderBounties(auditCoverage = []) {
     .map(
       (b) => `
       <div class="bounty-item" data-airport="${b.airportCode}" data-track="${b.targetTrack}" role="button" tabindex="0">
-        <div>
-          <div class="bounty-city">${b.airportCode} &mdash; ${escapeHtml(b.city)}</div>
-          <div class="bounty-need">${escapeHtml(b.needText)}</div>
+        <div class="bounty-row-left">
+          <span class="bounty-code-tag">${escapeHtml(b.airportCode)}</span>
+          <div>
+            <div class="bounty-city">${escapeHtml(b.city)}</div>
+            <div class="bounty-need">${escapeHtml(b.needText)}</div>
+          </div>
         </div>
-        <span class="badge ${b.priority === 1 ? 'badge-caution' : 'badge-primary'}">+ Add</span>
+        <span class="badge ${b.priority === 1 ? 'badge-caution' : 'badge-primary'}">+ Log</span>
       </div>
     `
     )
@@ -720,28 +723,64 @@ function renderSpotlight() {
   cardsEl.innerHTML = `
     <div class="price-stage-card">
       <div>
-        <div class="stage-tag">1. Nearby Neighborhood Store</div>
+        <div class="stage-tag">1. Open-Market Neighborhood Store</div>
         <div class="stage-price">$${streetAvg.toFixed(2)}</div>
       </div>
-      <p class="stage-note">Typical price for ${escapeHtml(activeItem.shortLabel.toLowerCase())} at grocery stores, pharmacies, and corner markets outside the airport.</p>
+      <p class="stage-note">Typical price for ${escapeHtml(activeItem.shortLabel.toLowerCase())} at competitive grocery stores, pharmacies, and corner markets outside the airport.</p>
     </div>
 
     <div class="price-stage-card highlight-fair">
       <div>
-        <div class="stage-tag">2. Airport Fair-Pricing Limit (+15%)</div>
+        <div class="stage-tag">2. Municipal Lease Cap (+15% Rule)</div>
         <div class="stage-price text-fair">$${fairLimit.toFixed(2)}</div>
       </div>
-      <p class="stage-note">The ceiling most U.S. airports promise travelers under &ldquo;street pricing plus 10&ndash;15%&rdquo; lease rules.</p>
+      <p class="stage-note">The maximum fair-market price most port authorities write into terminal leases (&ldquo;street pricing plus 10&ndash;15%&rdquo;).</p>
     </div>
 
     <div class="price-stage-card highlight-overcharge">
       <div>
-        <div class="stage-tag">3. Actual Terminal Price We Found</div>
+        <div class="stage-tag">3. Actual Concourse Register Average</div>
         <div class="stage-price text-overcharge">$${airportAvg.toFixed(2)}</div>
       </div>
-      <p class="stage-note"><strong>+$${extraDollars.toFixed(2)} extra (+${markupPct}%)</strong> over nearby stores across ${airPrices.length || 1} shared airport receipt${airPrices.length === 1 ? '' : 's'}.</p>
+      <p class="stage-note"><strong>+$${extraDollars.toFixed(2)} extra (+${markupPct}%)</strong> over nearby stores across ${airPrices.length || 1} shared terminal receipt${airPrices.length === 1 ? '' : 's'}.</p>
     </div>
   `;
+
+  const familyEl = $('spotlight-family-impact');
+  if (familyEl) {
+    const groupSize = 4;
+    const streetGroup = streetAvg * groupSize;
+    const fairGroup = fairLimit * groupSize;
+    const airportGroup = airportAvg * groupSize;
+    const groupOverpay = Math.max(0, airportGroup - streetGroup);
+    const groupOverCap = Math.max(0, airportGroup - fairGroup);
+
+    familyEl.innerHTML = `
+      <div class="family-impact-copy">
+        <div class="family-impact-kicker">Reunion &amp; Family Travel Affordability (Group of 4)</div>
+        <p class="family-impact-headline">
+          Buying 4 &times; ${escapeHtml(activeItem.shortLabel)} before boarding adds <span class="text-overcharge">+$${groupOverpay.toFixed(2)}</span> in concourse markups
+        </p>
+        <p class="family-impact-sub">
+          For a family of four flying to a holiday gathering, one round of ${escapeHtml(activeItem.shortLabel.toLowerCase())} costs <strong>$${airportGroup.toFixed(2)}</strong> at the gate vs. <strong>$${streetGroup.toFixed(2)}</strong> in town${groupOverCap > 0.04 ? ` — <strong>$${groupOverCap.toFixed(2)} above</strong> the municipal +15% lease ceiling` : ''}.
+        </p>
+      </div>
+      <div class="family-impact-figures">
+        <div class="family-figure-box">
+          <span class="family-figure-label">4 in Town</span>
+          <span class="family-figure-val">$${streetGroup.toFixed(2)}</span>
+        </div>
+        <div class="family-figure-box">
+          <span class="family-figure-label">4 Under Lease Cap</span>
+          <span class="family-figure-val text-fair">$${fairGroup.toFixed(2)}</span>
+        </div>
+        <div class="family-figure-box">
+          <span class="family-figure-label">4 at Boarding Gate</span>
+          <span class="family-figure-val text-overcharge">$${airportGroup.toFixed(2)}</span>
+        </div>
+      </div>
+    `;
+  }
 }
 
 function renderDashboard() {
@@ -1273,5 +1312,18 @@ $('btn-run-full-pipeline')?.addEventListener('click', runFullPipeline);
 $('filter-track')?.addEventListener('change', renderReceiptsTable);
 $('filter-airport')?.addEventListener('change', renderReceiptsTable);
 $('filter-search')?.addEventListener('input', renderReceiptsTable);
+
+$('open-data-play-btn')?.addEventListener('click', () => {
+  const stage = $('open-data-video-window');
+  if (!stage) return;
+  const iframe = document.createElement('iframe');
+  iframe.src = 'https://www.youtube-nocookie.com/embed/35ypZJ3Zc0Y?autoplay=1&rel=0';
+  iframe.title = 'More Perfect Union — I Confronted the Authorities Behind Airport Price Gouging';
+  iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+  iframe.allowFullscreen = true;
+  iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+  stage.innerHTML = '';
+  stage.appendChild(iframe);
+});
 
 loadBootstrap();

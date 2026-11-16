@@ -270,19 +270,40 @@
       background: var(--primary-soft); border: 1px solid hsla(215, 56%, 25%, 0.16);
     }
     .mpu-yt-link:hover { background: hsl(214, 48%, 91%); }
+    .m-concourse-strip {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      background: hsl(215, 56%, 16%); color: hsl(40, 72%, 85%);
+      font-family: var(--font-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em;
+      padding: 6px 12px; border-radius: 9px; margin-bottom: 12px;
+    }
+    .m-mission-note {
+      background: #fdfbf7; border: 1px dashed hsl(35, 18%, 76%); border-radius: 11px;
+      padding: 11px 13px; margin-bottom: 14px; font-size: 12.5px; color: var(--ink-sub); line-height: 1.45;
+    }
+    .m-mission-note strong { color: var(--ink); display: block; margin-bottom: 2px; font-size: 13px; }
   </style>
 </head>
 <body>
   <div class="mobile-shell">
+    <div class="m-concourse-strip">
+      <span>&#9992; PUBLIC CONCOURSE MONITOR</span>
+      <span>10&ndash;15% FAIR-PRICE RULE</span>
+    </div>
+
     <header class="top-bar">
       <a href="/" class="brand">
-        <div class="mark">A</div>
+        <div class="mark" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3v17"/><path d="M7 20h10"/><path d="M5 8h14"/>
+            <path d="M5 8 3 13h4L5 8Z"/><path d="M19 8l-2 5h4l-2-5Z"/><path d="m9.5 4.5 2.5-2 2.5 2"/>
+          </svg>
+        </div>
         <div>
           <h1>Airport Price Watch</h1>
-          <span>Quick Volunteer App</span>
+          <span>Fair Markets &amp; Affordable Travel</span>
         </div>
       </a>
-      <a href="/" class="pill-link">Full Charts</a>
+      <a href="/" class="pill-link">Full Monitor</a>
     </header>
 
     <div class="step-bar">
@@ -293,6 +314,11 @@
 
     <!-- STEP 1: CAPTURE OR QUICK SPOT -->
     <section id="view-step-1">
+      <div class="m-mission-note">
+        <strong>Every Flight Leads to a Reunion &mdash; Keep Concourses Fair</strong>
+        Whether you&rsquo;re at the gate flying to see loved ones or shopping in town, your receipt helps hold airport operators to municipal 10&ndash;15% street-pricing caps.
+      </div>
+
       <div class="mode-switch" role="tablist">
         <button type="button" class="mode-btn active" id="btn-mode-scan">Scan a Receipt</button>
         <button type="button" class="mode-btn" id="btn-mode-quick">10-Sec Quick Spot</button>

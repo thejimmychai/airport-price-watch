@@ -304,4 +304,37 @@ test('Global world airports catalog covers 5,200+ airports ranked US -> North Am
   assert.ok(traf.promotionTargets.length < 50, `Expected compact promotionTargets list, got ${traf.promotionTargets.length}`);
 });
 
+test('Frontend pages and custom editorial illustrations serve aviation, reunion, fair-market, affordability, and oversight finishes', async () => {
+  const homeRes = await fetch(`${baseUrl}/`);
+  assert.equal(homeRes.status, 200);
+  const homeHtml = await homeRes.text();
+  assert.ok(homeHtml.includes('PUBLIC CONCOURSE &amp; FAIR-MARKET MONITOR'));
+  assert.ok(homeHtml.includes('Every Flight Leads to a Reunion.'));
+  assert.ok(homeHtml.includes('id="spotlight-family-impact"'));
+  assert.ok(homeHtml.includes('id="open-data-video-window"'));
+  assert.ok(homeHtml.includes('/assets/reunion-fair-travel.jpg'));
+  assert.ok(homeHtml.includes('/assets/civic-oversight-scale.jpg'));
+
+  const mobileRes = await fetch(`${baseUrl}/submit.html`);
+  assert.equal(mobileRes.status, 200);
+  const mobileHtml = await mobileRes.text();
+  assert.ok(mobileHtml.includes('Every Flight Leads to a Reunion'));
+  assert.ok(mobileHtml.includes('id="mpu-video-window"'));
+
+  const adminRes = await fetch(`${baseUrl}/admin.html`);
+  assert.equal(adminRes.status, 200);
+  const adminHtml = await adminRes.text();
+  assert.ok(adminHtml.includes('Oversight &amp; Audit Console'));
+  assert.ok(adminHtml.includes('Public Concourse Audit Standard:'));
+
+  for (const assetPath of ['/assets/reunion-fair-travel.jpg', '/assets/civic-oversight-scale.jpg']) {
+    const imgRes = await fetch(`${baseUrl}${assetPath}`);
+    assert.equal(imgRes.status, 200);
+    assert.match(imgRes.headers.get('content-type') || '', /image\/jpeg/);
+    const bytes = await imgRes.arrayBuffer();
+    assert.ok(bytes.byteLength > 20_000, `Expected ${assetPath} > 20KB`);
+  }
+});
+
+
 
